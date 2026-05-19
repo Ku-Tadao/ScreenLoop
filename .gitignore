@@ -285,6 +285,7 @@ FakesAssemblies/
 node_modules/
 Frontend/node_modules/
 Frontend/dist/
+Frontend/.vite/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
