@@ -19,26 +19,28 @@ export default function StorageSettingsSection({
     appState.contentDriveTotalGb > 0 ? Math.max(1, Math.floor(appState.contentDriveTotalGb)) : 500;
   const storageHeadroomGb = settings.storageLimit * 0.2;
   const autoManageStartGb = settings.storageLimit - storageHeadroomGb;
+  const folderUsedPercent =
+    settings.storageLimit > 0
+      ? Math.min(100, (appState.currentFolderSizeGb / settings.storageLimit) * 100)
+      : 0;
+  const autoManageStartPercent = 80;
+  const limitPercentOfDrive =
+    appState.contentDriveTotalGb > 0
+      ? Math.min(100, (settings.storageLimit / appState.contentDriveTotalGb) * 100)
+      : 0;
   const driveUsedPercent =
     appState.contentDriveTotalGb > 0
       ? Math.min(
           100,
-          Math.round(
-            ((appState.contentDriveTotalGb - appState.contentDriveFreeGb) /
-              appState.contentDriveTotalGb) *
-              100,
-          ),
+          ((appState.contentDriveTotalGb - appState.contentDriveFreeGb) /
+            appState.contentDriveTotalGb) *
+            100,
         )
       : 0;
 
   useEffect(() => {
     setLocalStorageLimit(String(settings.storageLimit));
   }, [settings.storageLimit]);
-
-  const usedPercent =
-    settings.storageLimit > 0
-      ? Math.min(100, Math.round((appState.currentFolderSizeGb / settings.storageLimit) * 100))
-      : 0;
 
   const commitStorageLimit = (value: string) => {
     const numericLimit = Math.min(
@@ -91,8 +93,24 @@ export default function StorageSettingsSection({
           </div>
         </div>
 
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-screen-deep">
-          <div className="h-full bg-primary" style={{ width: `${driveUsedPercent}%` }} />
+        <div className="mt-5">
+          <div className="mb-2 flex items-center justify-between text-xs text-screen-muted">
+            <span>Drive usage</span>
+            <span>
+              {driveUsedPercent.toFixed(1)}% used
+              {limitPercentOfDrive > 0 && `, ScreenLoop limit is ${limitPercentOfDrive.toFixed(1)}%`}
+            </span>
+          </div>
+          <div className="relative h-2 overflow-hidden rounded-full bg-screen-deep">
+            <div className="h-full bg-primary" style={{ width: `${driveUsedPercent}%` }} />
+            {limitPercentOfDrive > 0 && (
+              <div
+                className="absolute top-0 h-full w-px bg-slate-200/80"
+                style={{ left: `${limitPercentOfDrive}%` }}
+                title="Selected ScreenLoop media-folder limit as a share of this drive"
+              />
+            )}
+          </div>
         </div>
 
         <div className="mt-6 rounded-lg border border-screen-line bg-screen-main p-4">
@@ -125,8 +143,19 @@ export default function StorageSettingsSection({
             />
             <span className="text-screen-muted">GB</span>
           </div>
-          <div className="mt-3 h-1.5 bg-screen-deep">
-            <div className="h-full bg-primary" style={{ width: `${usedPercent}%` }} />
+          <div className="mt-3">
+            <div className="mb-2 flex items-center justify-between text-xs text-screen-muted">
+              <span>Media folder usage</span>
+              <span>{folderUsedPercent.toFixed(1)}% of selected limit</span>
+            </div>
+            <div className="relative h-1.5 overflow-hidden rounded-full bg-screen-deep">
+              <div className="h-full bg-primary" style={{ width: `${folderUsedPercent}%` }} />
+              <div
+                className="absolute top-0 h-full w-px bg-slate-200/80"
+                style={{ left: `${autoManageStartPercent}%` }}
+                title={`Auto-manage starts at ${autoManageStartGb.toFixed(2)} GB used`}
+              />
+            </div>
           </div>
           <div className="mt-3 flex justify-between text-xs text-screen-muted">
             <span>
