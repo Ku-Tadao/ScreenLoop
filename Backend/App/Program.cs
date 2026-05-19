@@ -1,0 +1,628 @@
+using Photino.NET;
+using Photino.NET.Server;
+using ScreenLoop.Backend.Api;
+using ScreenLoop.Backend.Core.Models;
+using ScreenLoop.Backend.Recorder;
+using ScreenLoop.Backend.Services;
+using ScreenLoop.Backend.Utils;
+using ScreenLoop.Backend.Windows.Input;
+using ScreenLoop.Backend.Windows.Power;
+using ScreenLoop.Backend.Windows.Storage;
+using Serilog;
+using System.Diagnostics;
+using System.IO.Pipes;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using Velopack;
+
+namespace ScreenLoop.Backend.App
+{
+    class Program
+    {
+        [DllImport("user32.dll")]
+        static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        static extern bool SetProcessDPIAware();
+
+        const int SW_HIDE = 0;
+        const int SW_SHOW = 5;
+        const int SW_RESTORE = 9;
+        public static bool IsFirstRun { get; private set; } = false;
+        private static readonly AutoResetEvent ShowWindowEvent = new AutoResetEvent(false);
+        public static bool hasLoadedInitialSettings = false;
+        public static PhotinoWindow? Window { get; private set; }
+        private static readonly string LogFilePath =
+          ScreenLoop.Backend.Shared.PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ScreenLoop", "logs.log"));
+        private const string PipeName = "ScreenLoop_SingleInstance";
+        private static Mutex? singleInstanceMutex;
+        private static Thread? pipeServerThread;
+        private static string? appUrl;
+        private const long maxFileSizeBytes = 10 * 1024 * 1024; // 10MB
+        private const long trimTargetBytes = 8 * 1024 * 1024; // trim down to 8MB when limit is hit
+        private const string LogOutputTemplate =
+            "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}";
+
+        [STAThread]
+        static void Main(string[] args)
+        {
+            // Set process DPI aware to ensure we capture at physical resolution
+            SetProcessDPIAware();
+            Directory.SetCurrentDirectory(AppDomain.CurrentDomain.BaseDirectory);
+
+            // In debug mode, kill any existing instances before starting
+#if DEBUG
+            try
+            {
+                var currentProcess = Process.GetCurrentProcess();
+                var existingProcesses = Process.GetProcessesByName(currentProcess.ProcessName)
+                    .Where(p => p.Id != currentProcess.Id);
+
+                foreach (var process in existingProcesses)
+                {
+                    Console.WriteLine($"[DEBUG] Killing existing instance: PID {process.Id}");
+                    process.Kill();
+                    process.WaitForExit(3000); // Wait up to 3 seconds for graceful exit
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DEBUG] Failed to kill existing instance: {ex.Message}");
+            }
+#endif
+
+            // Try to create a named mutex - this will fail if another instance exists
+            singleInstanceMutex = new Mutex(true, "ScreenLoopApplicationMutex", out bool createdNew);
+
+            if (!createdNew)
+            {
+                // Another instance exists, send a message to it via named pipe
+                try
+                {
+                    using (var pipeClient = new NamedPipeClientStream(".", PipeName, PipeDirection.Out))
+                    {
+                        pipeClient.Connect(3000);
+
+                        using (var writer = new StreamWriter(pipeClient))
+                        {
+                            writer.WriteLine("SHOW_WINDOW");
+                            writer.Flush();
+                        }
+                    }
+
+                    Environment.Exit(0);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to communicate with existing instance: {ex.Message}");
+                }
+            }
+
+            StartNamedPipeServer();
+
+            var logDirectory = Path.GetDirectoryName(LogFilePath);
+            if (logDirectory != null && !Directory.Exists(logDirectory))
+            {
+                Directory.CreateDirectory(logDirectory);
+            }
+
+            ConfigureLogging();
+
+            // Get the current version
+            var currentVersion = Assembly.GetExecutingAssembly().GetName().Version;
+
+            VelopackApp.Build()
+                .OnBeforeUpdateFastCallback((v) =>
+                {
+                    if (UpdateService.UpdateManager == null)
+                    {
+                        Log.Error("UpdateManager is null");
+                        return;
+                    }
+                    var currentVersion = UpdateService.UpdateManager.CurrentVersion;
+                    if (currentVersion == null)
+                    {
+                        Log.Error("Current version is null");
+                        return;
+                    }
+                    Log.Information($"Updating from version {currentVersion} to {v}");
+                    File.WriteAllText(Path.Combine(Path.GetTempPath(), "screenloop.tmp"), currentVersion.ToString());
+                })
+                .OnAfterUpdateFastCallback((v) =>
+                {
+                    string previousVersionPath = Path.Combine(Path.GetTempPath(), "screenloop.tmp");
+                    if (File.Exists(previousVersionPath))
+                    {
+                        string previousVersion = File.ReadAllText(previousVersionPath);
+                        Log.Information($"Updated from version {previousVersion} to {v}");
+                        Task.Run(async () =>
+                        {
+                            await Task.Delay(5000);
+                            _ = MessageService.SendFrontendMessage("ShowReleaseNotes", previousVersion);
+                        });
+                        File.Delete(previousVersionPath);
+                    }
+                })
+                .OnFirstRun((v) =>
+                {
+                    Log.Information($"First run of ScreenLoop {v}");
+                })
+                .Run();
+
+            try
+            {
+                Log.Information("Application starting up...");
+
+                // Set up the PhotinoServer
+                PhotinoServer
+                    .CreateStaticFileServer(args, out string baseUrl)
+                    .RunAsync();
+
+                bool IsDebugMode = Debugger.IsAttached || args.Contains("--debug");
+                appUrl = IsDebugMode ? "http://127.0.0.1:2882" : $"{baseUrl}/index.html";
+
+                if (IsDebugMode)
+                {
+                    Task.Run(() =>
+                    {
+                        var startInfo = new ProcessStartInfo
+                        {
+                            FileName = "cmd.exe",
+                            Arguments = "/c npm run dev -- --host 127.0.0.1 --port 2882",
+                            WorkingDirectory = Path.Join(GetSolutionPath(), @"Frontend")
+                        };
+
+                        using (HttpClient client = new())
+                        {
+                            client.DefaultRequestHeaders.ExpectContinue = false;
+                            try
+                            {
+                                // Set a short timeout since we're just checking if the server is running
+                                client.Timeout = TimeSpan.FromSeconds(1);
+                                var response = client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "http://127.0.0.1:2882/index.html")).Result;
+                            }
+                            catch (Exception)
+                            {
+                                Process.Start(startInfo);
+                            }
+                        }
+                    });
+                }
+
+                // Get the directory containing the executable
+                Log.Information("Serving React app at {AppUrl}", appUrl);
+
+                Task.Run(() =>
+                {
+                    string prefix = "http://localhost:2222/";
+                    ContentServer.StartServer(prefix);
+                });
+
+                IsFirstRun = !SettingsService.LoadSettings();
+                hasLoadedInitialSettings = true;
+                AppState.Instance.Initialize();
+                SettingsService.SaveSettings();
+                if (IsFirstRun)
+                {
+                    _ = SettingsService.LoadContentFromFolderIntoState(true);
+                    StartupService.SetStartupStatus(true);
+                    AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
+                    if (AppState.Instance.GpuVendor == GeneralUtils.GpuVendor.Nvidia)
+                    {
+                        AppState.Instance.CudaComputeCapability = GeneralUtils.DetectCudaComputeCapability();
+                    }
+                    SettingsService.SelectDefaultDevices();
+                    _ = PresetsService.ApplyVideoPreset("high");
+                    _ = PresetsService.ApplyClipPreset("standard");
+                }
+
+                // Ensure content folder exists
+                if (!Directory.Exists(Settings.Instance.ContentFolder))
+                {
+                    Directory.CreateDirectory(Settings.Instance.ContentFolder);
+                }
+
+                // Run data migrations
+                Task.Run(MigrationService.RunMigrations);
+
+                // Start WebSocket and Load Settings
+                Task.Run(MessageService.StartWebsocket);
+                Task.Run(MessageService.StartLegacyPortFallback);
+                Task.Run(StorageService.EnsureStorageBelowLimit);
+
+                // Check for updates
+                Task.Run(UpdateService.UpdateAppIfNecessary);
+
+                // Check if application was launched from startup
+                bool startMinimized = IsLaunchedFromStartup();
+                Log.Information($"Starting application{(startMinimized ? " minimized from startup" : "")}");
+
+                AddNotifyIcon();
+
+                // Start monitoring system power state changes (sleep/wake)
+                Task.Run(PowerModeMonitor.StartMonitoring);
+
+                // Run the OBS Initializer in a separate thread and application to make sure someting on the main thread doesn't block
+                Task.Run(() => Application.Run(new OBSWindow()));
+
+                // Global keybind hook (low-level keyboard hook + message loop) — runs for the lifetime of the app.
+                Task.Run(KeybindCaptureService.Start);
+
+                if (!startMinimized)
+                {
+                    LoadFrontend();
+                }
+
+                // Wait for show window events
+                while (true)
+                {
+                    int signalIndex = WaitHandle.WaitAny([ShowWindowEvent]);
+                    Log.Information($"Signal received: {signalIndex}");
+                    if (signalIndex == 0)
+                    {
+                        Log.Information("Show window event triggered");
+                        ShowApplicationWindow().GetAwaiter().GetResult();
+                        Log.Information("Show window event completed");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Fatal(ex, "Application terminated unexpectedly.");
+            }
+            finally
+            {
+                Shutdown();
+            }
+        }
+
+        private static void Shutdown()
+        {
+            Log.Information("Application shutting down.");
+
+            // Shutdown OBS if it was initialized
+            OBSService.Shutdown();
+
+            Log.CloseAndFlush(); // Ensure all logs are written before the application exits
+
+            // Release the mutex when closing (only if we own it)
+            if (singleInstanceMutex != null)
+            {
+                try
+                {
+                    singleInstanceMutex.ReleaseMutex();
+                }
+                catch (ApplicationException)
+                {
+                    // Mutex was not owned by this thread, which is fine
+                    // This can happen when exiting from the tray icon thread
+                }
+                finally
+                {
+                    singleInstanceMutex.Dispose();
+                }
+            }
+        }
+
+        public static void ConfigureLogging()
+        {
+            PurgeOldLogs();
+
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.Debug()
+                //.WriteTo.Debug(restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Warning) // Remove restricted minimum level to show all logs but increase lag while debugging
+                .WriteTo.Sink(new TrimmingFileSink(LogFilePath, maxFileSizeBytes, trimTargetBytes, LogOutputTemplate))
+                .CreateLogger();
+        }
+
+        private static void PurgeOldLogs()
+        {
+            try
+            {
+                var logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ScreenLoop");
+
+                if (!Directory.Exists(logDirectory))
+                    return;
+
+                var logFiles = Directory.GetFiles(logDirectory, "*.log");
+
+                if (logFiles.Length == 0)
+                    return;
+
+                // Get the first .log file found
+                var logFilePath = logFiles[0];
+                var fileInfo = new FileInfo(logFilePath);
+
+                if (!fileInfo.Exists || fileInfo.Length <= maxFileSizeBytes)
+                    return;
+
+                var lines = File.ReadAllLines(logFilePath).ToList();
+                var avgLineSize = fileInfo.Length / lines.Count;
+                var linesToKeep = (int)(trimTargetBytes / avgLineSize);
+
+                if (linesToKeep < lines.Count)
+                {
+                    var recentLines = lines.Skip(lines.Count - linesToKeep).ToList();
+                    File.WriteAllLines(logFilePath, recentLines);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Error purging logs: {ex.Message}");
+            }
+        }
+
+        private static Size? _windowSizeBeforeFullscreen;
+        private static Point? _windowLocationBeforeFullscreen;
+        private static bool _wasMaximizedBeforeFullscreen;
+
+        public static void SetFullscreen(bool enabled)
+        {
+            try
+            {
+                if (Window == null) return;
+
+                if (enabled)
+                {
+                    _wasMaximizedBeforeFullscreen = Window.Maximized;
+                    _windowSizeBeforeFullscreen = Window.Size;
+                    _windowLocationBeforeFullscreen = Window.Location;
+                    Window.SetMaximized(true);
+                }
+                else
+                {
+                    if (_wasMaximizedBeforeFullscreen)
+                    {
+                        return;
+                    }
+                    else if (_windowSizeBeforeFullscreen.HasValue && _windowLocationBeforeFullscreen.HasValue)
+                    {
+                        // Was not maximized, restore size and position
+                        Window.SetMaximized(false);
+                        Window.SetSize(_windowSizeBeforeFullscreen.Value);
+                        Window.SetLocation(_windowLocationBeforeFullscreen.Value);
+                    }
+                    else
+                    {
+                        Window.SetMaximized(false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error setting fullscreen state");
+            }
+        }
+
+        private static async Task ShowApplicationWindow()
+        {
+            Log.Information("Showing application window. Window is " + (Window == null ? "null" : "not null"));
+            if (Window == null)
+            {
+                // Schedule the foreground operations with a delay before calling LoadFrontend
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(200);
+                    Log.Information("Bringing application window to foreground from scheduled task");
+                    if (Window != null)
+                    {
+                        await BringApplicationWindowToForeground();
+                        Log.Information("Application window brought to foreground");
+                    }
+                });
+
+                LoadFrontend();
+            }
+            else
+            {
+                Log.Information("Bringing application window to foreground. Window is not null");
+                await BringApplicationWindowToForeground();
+                Log.Information("Application window brought to foreground");
+            }
+        }
+
+        private static async Task BringApplicationWindowToForeground()
+        {
+            if (Window == null)
+            {
+                return;
+            }
+
+            Window.SetMinimized(false);
+
+            IntPtr hWnd = GetMainWindowHandle();
+            if (hWnd != IntPtr.Zero)
+            {
+                ShowWindow(hWnd, SW_SHOW);
+                ShowWindow(hWnd, SW_RESTORE);
+            }
+            else
+            {
+                Log.Warning("Could not find native application window handle while opening ScreenLoop");
+            }
+
+            Window.SetTopMost(true);
+            await Task.Delay(200);
+            Window.SetTopMost(false);
+
+            if (hWnd != IntPtr.Zero)
+            {
+                SetForegroundWindow(hWnd);
+            }
+        }
+
+        private static void HideApplicationWindow()
+        {
+            Window?.SetMinimized(true);
+
+            IntPtr hWnd = GetMainWindowHandle();
+            if (hWnd != IntPtr.Zero)
+            {
+                ShowWindow(hWnd, SW_HIDE); // Hides the window from the taskbar
+            }
+
+            Log.Information("Application window hidden");
+        }
+
+        private static IntPtr GetMainWindowHandle()
+        {
+            Process currentProcess = Process.GetCurrentProcess();
+            currentProcess.Refresh();
+            return currentProcess.MainWindowHandle;
+        }
+
+        private static void LoadFrontend()
+        {
+            Log.Information("Loading frontend, app url is " + appUrl);
+            // Initialize the PhotinoWindow
+            Window = new PhotinoWindow()
+                .SetBrowserControlInitParameters("--enable-blink-features=AudioVideoTracks")
+                .SetNotificationsEnabled(false) // Disabled due to it creating a second start menu entry with incorrect start path. See https://github.com/tryphotino/photino.NET/issues/85
+                .SetUseOsDefaultSize(false)
+                .SetIconFile(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icon.ico"))
+                .SetSize(new Size(1280, 720))
+                .Center()
+                .SetResizable(true)
+                .RegisterWebMessageReceivedHandler((sender, message) =>
+                {
+                    Window = (PhotinoWindow)sender!;
+                    _ = MessageService.HandleMessage(message);
+                })
+                .Load(appUrl);
+
+            Log.Information("Window variable has been set");
+
+            // intentional space after name because of https://github.com/tryphotino/photino.NET/issues/106
+            Window.SetTitle("ScreenLoop ");
+
+            Window.RegisterWindowClosingHandler((sender, eventArgs) =>
+            {
+                HideApplicationWindow();
+                return true;
+            });
+
+            Window.WaitForClose();
+        }
+
+        private static void StartNamedPipeServer()
+        {
+            pipeServerThread = new Thread(() =>
+            {
+                while (true)
+                {
+                    try
+                    {
+                        using (var pipeServer = new NamedPipeServerStream(PipeName, PipeDirection.In))
+                        {
+                            pipeServer.WaitForConnection();
+
+                            using (var reader = new StreamReader(pipeServer))
+                            {
+                                string? message = reader.ReadLine();
+                                if (message == "SHOW_WINDOW")
+                                {
+                                    if (Window != null)
+                                    {
+                                        Window.SetMinimized(false);
+                                        Window.SetTopMost(true);
+                                        Thread.Sleep(200);
+                                        Window.SetTopMost(false);
+                                        Log.Information("Window brought to foreground directly from pipe server");
+                                    }
+                                    else
+                                    {
+                                        // Only signal the main thread to create the window if it doesn't exist
+                                        ShowWindowEvent.Set();
+                                        Log.Information("ShowWindowEvent set");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        if (Log.Logger != null)
+                        {
+                            Log.Error(ex, "Error in named pipe server");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Error in named pipe server: {ex.Message}");
+                        }
+
+                        Thread.Sleep(1000);
+                    }
+                }
+            });
+
+            pipeServerThread.IsBackground = true;
+            pipeServerThread.Start();
+        }
+
+        // Check if the application was launched from startup
+        private static bool IsLaunchedFromStartup()
+        {
+            return Environment.GetCommandLineArgs().Contains("--from-startup");
+        }
+
+        private static void AddNotifyIcon()
+        {
+            var trayThread = new Thread(() =>
+            {
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+
+                using (var icon = new NotifyIcon())
+                {
+                    icon.Icon = Properties.Resources.icon;
+                    icon.Text = "ScreenLoop";
+                    icon.Visible = true;
+
+                    var menu = new ContextMenuStrip();
+                    menu.Items.Add("Open", null, async (s, e) => await ShowApplicationWindow());
+                    menu.Items.Add("Exit", null, (s, e) =>
+                    {
+                        Shutdown();
+                        Environment.Exit(0);
+                    });
+                    icon.ContextMenuStrip = menu;
+
+                    icon.MouseDoubleClick += async (s, e) =>
+                    {
+                        if (e.Button == MouseButtons.Left)
+                            await ShowApplicationWindow();
+                    };
+
+                    NotifyIconService.Initialize(icon);
+
+                    Application.Run();
+                }
+            });
+            trayThread.SetApartmentState(ApartmentState.STA);
+            trayThread.IsBackground = true;
+            trayThread.Start();
+        }
+
+        private static string GetSolutionPath()
+        {
+            string currentDirectory = Directory.GetCurrentDirectory();
+
+            string directory = currentDirectory;
+            while (!string.IsNullOrEmpty(directory) && !Directory.GetFiles(directory, "*.sln").Any())
+            {
+                directory = Directory.GetParent(directory)?.FullName!;
+            }
+
+            if (string.IsNullOrEmpty(directory))
+            {
+                throw new InvalidOperationException("Solution path could not be found. Ensure you are running this application within a solution directory.");
+            }
+
+            return directory;
+        }
+    }
+}

@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "ScreenLoop": {
+      "commandName": "Project",
+      "commandLineArgs": "--debug",
+      "nativeDebugging": true
+    }
+  }
+}
