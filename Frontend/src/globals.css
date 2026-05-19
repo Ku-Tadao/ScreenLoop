@@ -1,0 +1,171 @@
+@import 'tailwindcss';
+@plugin "daisyui" {
+  themes: false;
+}
+
+@plugin "daisyui/theme" {
+  name: 'ScreenLoop';
+  default: true;
+  color-scheme: dark;
+  --color-primary: #63f7ff;
+  --color-secondary: #1e293b;
+  --color-accent: #63f7ff;
+  --color-neutral: #192121;
+  --color-base-100: #0d1515;
+  --color-base-200: #0f172a;
+  --color-base-300: #1e293b;
+  --color-base-content: #dce4e4;
+  --color-info: #00dce5;
+  --color-success: #36d399;
+  --color-warning: #ffd481;
+  --color-error: #ff4b4b;
+  --color-primary-content: #003739;
+  --card-p: 1rem;
+  --radius-box: 0.5rem;
+  --radius-field: 0.25rem;
+  --radius-selector: 0.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.3rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@layer components {
+  .checkbox {
+    color: var(--color-base-300) !important;
+  }
+  .tooltip[data-tip]::before {
+    color: var(--color-base-300) !important;
+  }
+  .btn:is(:disabled, [disabled], .btn-disabled):not(.btn-link, .btn-ghost) {
+    background-color: var(--btn-bg) !important;
+    box-shadow: var(--btn-shadow) !important;
+  }
+  @media (hover: hover) {
+    .btn:is(:disabled, [disabled], .btn-disabled):hover {
+      background-color: var(--btn-bg) !important;
+    }
+  }
+}
+
+@theme {
+  --color-base-400: #334155;
+  --color-custom: #334155;
+  --color-primary-yellow: #63f7ff;
+  --color-screen-deep: #0f172a;
+  --color-screen-surface: #1e293b;
+  --color-screen-raised: #334155;
+  --color-screen-line: #334155;
+  --color-screen-muted: #b9caca;
+  --color-screen-red: #ff4b4b;
+}
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+html,
+body,
+#root {
+  background: #0f172a;
+}
+
+body {
+  color: #dce4e4;
+}
+
+@keyframes screen-pulse-red {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 75, 75, 0.32);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 75, 75, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 75, 75, 0);
+  }
+}
+
+.pulse-red {
+  animation: screen-pulse-red 2s infinite;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Highlight card gradient border animation */
+@keyframes highlightBorderAnimation {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 200% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.highlight-card {
+  overflow: hidden;
+}
+
+.highlight-border {
+  background: linear-gradient(-450deg, #7928ca, #ff0080, #1c64f2, #00d4ff, #7928ca);
+  background-size: 300% 300%;
+  animation: highlightBorderAnimation 8s ease infinite;
+  z-index: 1;
+}
+
+/* Shockwave animation for bookmark creation */
+@keyframes shockwave {
+  0% {
+    width: 0;
+    height: 0;
+    opacity: 0.6;
+  }
+  100% {
+    width: 400px;
+    height: 400px;
+    opacity: 0;
+  }
+}
+
+.animate-shockwave {
+  animation: shockwave 0.6s ease-out forwards;
+}
+
+/* Remove all focus rings globally */
+*,
+*:focus,
+*:focus-visible,
+*:focus-within,
+dialog,
+dialog:focus,
+.modal,
+.modal-box {
+  outline: none !important;
+  outline-width: 0 !important;
+  outline-style: none !important;
+  outline-color: transparent !important;
+  outline-offset: 0 !important;
+  --tw-ring-offset-width: 0px !important;
+  --tw-ring-width: 0px !important;
+  --tw-ring-color: transparent !important;
+  --tw-ring-offset-color: transparent !important;
+  box-shadow: none !important;
+}
