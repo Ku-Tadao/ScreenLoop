@@ -1,0 +1,207 @@
+name: Create Prerelease
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Type of release increment (patch, minor, major)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      prerelease_type:
+        description: 'Type of prerelease (rc = Release Candidate, beta = Beta)'
+        required: true
+        default: 'beta'
+        type: choice
+        options:
+          - beta
+          - rc
+      version:
+        description: 'Optional explicit prerelease version without leading v (e.g., 0.1.0-beta.1)'
+        required: false
+        type: string
+
+jobs:
+  build:
+    runs-on: windows-2025-vs2026
+    permissions:
+      contents: write
+    outputs:
+      new_version: ${{ steps.get_version.outputs.new_version }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('Frontend/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Determine Version
+        id: get_version
+        shell: pwsh
+        run: |
+          $explicitVersion = "${{ github.event.inputs.version }}"
+          if ($explicitVersion) {
+            if ($explicitVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+-(beta|rc)\.[0-9]+$') {
+              Write-Error "Invalid explicit version: $explicitVersion. Expected X.Y.Z-beta.N or X.Y.Z-rc.N"
+              exit 1
+            }
+            Write-Host "Using explicit prerelease version: $explicitVersion"
+            echo "new_version=$explicitVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
+            echo "new_version=$explicitVersion" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+
+          # Get the highest final release version (exclude prereleases, sort by semver)
+          $latestFinalTag = (git tag | Where-Object { $_ -notmatch '-(rc|beta)\.' } | Sort-Object { [version]($_ -replace '^v', '') } | Select-Object -Last 1) -replace '^v', ''
+          if (-not $latestFinalTag) {
+            $latestFinalTag = "0.0.0"
+          }
+          Write-Host "Latest final release: $latestFinalTag"
+
+          $releaseType = "${{ github.event.inputs.release_type }}"
+          $prereleaseType = "${{ github.event.inputs.prerelease_type }}"
+
+          # Calculate what the next version would be based on release type
+          $versionParts = $latestFinalTag.Split('.')
+          $major = [int]$versionParts[0]
+          $minor = [int]$versionParts[1]
+          $patch = [int]$versionParts[2]
+
+          switch ($releaseType) {
+            "major" { $major++; $minor=0; $patch=0 }
+            "minor" { $minor++; $patch=0 }
+            "patch" { $patch++ }
+          }
+          $nextBaseVersion = "$major.$minor.$patch"
+          Write-Host "Next base version would be: $nextBaseVersion"
+          Write-Host "Prerelease type: $prereleaseType"
+
+          # Check if there are existing prereleases of the selected type for this next version
+          $existingPrereleases = git tag | Where-Object { $_ -match "^v$([regex]::Escape($nextBaseVersion))-$prereleaseType\.(\d+)$" }
+
+          if ($existingPrereleases) {
+            # Find the highest prerelease number
+            $highestNum = $existingPrereleases | ForEach-Object {
+              if ($_ -match "-$prereleaseType\.(\d+)$") { [int]$Matches[1] }
+            } | Sort-Object | Select-Object -Last 1
+
+            $prereleaseNumber = $highestNum + 1
+            Write-Host "Found existing ${prereleaseType}s, highest is $prereleaseType.$highestNum, creating $prereleaseType.$prereleaseNumber"
+          } else {
+            $prereleaseNumber = 1
+            Write-Host "No existing ${prereleaseType}s for $nextBaseVersion, starting at $prereleaseType.1"
+          }
+
+          $newVersion = "$nextBaseVersion-$prereleaseType.$prereleaseNumber"
+          Write-Host "New version: $newVersion"
+
+          echo "new_version=$newVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
+          echo "new_version=$newVersion" >> $env:GITHUB_OUTPUT
+
+      - name: Configure Git User
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        shell: pwsh
+
+      - name: Install vpk as .NET Global Tool
+        run: |
+          dotnet tool install -g vpk
+          $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
+        shell: pwsh
+
+      - name: Update Frontend version
+        working-directory: ./Frontend
+        shell: pwsh
+        run: |
+          $content = Get-Content package.json -Raw
+          $packageJson = Get-Content package.json -Raw | ConvertFrom-Json
+          $packageJson.version = $env:new_version
+          $packageJson | ConvertTo-Json -Depth 100 | Set-Content package.json -NoNewline
+          Write-Host "Updated version: $(Select-String -Path package.json -Pattern 'version')"
+
+      - name: Install Frontend dependencies
+        working-directory: ./Frontend
+        run: bun install --frozen-lockfile
+
+      - name: Build Frontend
+        working-directory: ./Frontend
+        run: bun run build
+
+      - name: Move Frontend Build to Resources/wwwroot
+        run: |
+          $source = "./Frontend/dist"
+          $destination = "./Resources/wwwroot"
+          if (-Not (Test-Path -Path $destination)) { New-Item -ItemType Directory -Path $destination -Force }
+          Remove-Item -Path "$destination\*" -Recurse -Force
+          Copy-Item -Path "$source\*" -Destination $destination -Recurse -Force
+        shell: pwsh
+
+      - name: Publish the App
+        run: dotnet publish -c Release --self-contained -r win-x64 -o publish
+        shell: pwsh
+
+      - name: Package with vpk
+        run: vpk pack -u ScreenLoop -v ${{ env.new_version }} -p ./publish -e ScreenLoop.exe -o ./output --packTitle "ScreenLoop" --noPortable
+        shell: pwsh
+
+      - name: Create a Git Tag
+        run: |
+          git tag v${{ env.new_version }}
+          git push origin v${{ env.new_version }}
+        shell: pwsh
+
+      - name: Upload Release Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ScreenLoop
+          path: ./output
+          retention-days: 1
+
+  pre-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ScreenLoop
+
+      - name: Create GitHub Release (Pre-Release)
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ needs.build.outputs.new_version }}
+          name: "Release v${{ needs.build.outputs.new_version }}"
+          prerelease: true
+          generate_release_notes: false
+          files: |
+            ./ScreenLoop-win-Setup.exe
+            ./RELEASES
+            ./releases.win.json
+            ./assets.win.json
+            ./ScreenLoop-${{ needs.build.outputs.new_version }}-full.nupkg

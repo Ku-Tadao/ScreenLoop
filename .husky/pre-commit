@@ -1,0 +1,3 @@
+# Run lint-staged via Bun, limited to Frontend staged files
+bunx lint-staged
+
