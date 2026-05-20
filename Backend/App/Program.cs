@@ -40,7 +40,7 @@ namespace ScreenLoop.Backend.App
         private const string PipeName = "ScreenLoop_SingleInstance";
         private static Mutex? singleInstanceMutex;
         private static Thread? pipeServerThread;
-        private static string? appUrl;
+        private static string appUrl = string.Empty;
         private const long maxFileSizeBytes = 10 * 1024 * 1024; // 10MB
         private const long trimTargetBytes = 8 * 1024 * 1024; // trim down to 8MB when limit is hit
         private const string LogOutputTemplate =
@@ -478,6 +478,8 @@ namespace ScreenLoop.Backend.App
         private static void LoadFrontend()
         {
             Log.Information("Loading frontend, app url is " + appUrl);
+            WaitForLocalInterface(appUrl);
+
             // Initialize the PhotinoWindow
             Window = new PhotinoWindow()
                 .SetBrowserControlInitParameters("--enable-blink-features=AudioVideoTracks")
@@ -506,6 +508,47 @@ namespace ScreenLoop.Backend.App
             });
 
             Window.WaitForClose();
+        }
+
+        private static void WaitForLocalInterface(string url)
+        {
+            if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
+            {
+                Log.Warning("Skipping local interface readiness check because app url is invalid: {AppUrl}", url);
+                return;
+            }
+
+            using HttpClient client = new()
+            {
+                Timeout = TimeSpan.FromSeconds(1)
+            };
+
+            for (int attempt = 1; attempt <= 60; attempt++)
+            {
+                try
+                {
+                    using HttpRequestMessage request = new(HttpMethod.Get, uri);
+                    using HttpResponseMessage response = client.Send(request);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        Log.Information("Local interface is ready at {AppUrl}", url);
+                        return;
+                    }
+
+                    Log.Information("Local interface readiness check returned {StatusCode} on attempt {Attempt}", (int)response.StatusCode, attempt);
+                }
+                catch (Exception ex) when (ex is HttpRequestException || ex is TaskCanceledException)
+                {
+                    if (attempt == 1 || attempt % 10 == 0)
+                    {
+                        Log.Information("Waiting for local interface at {AppUrl} (attempt {Attempt}): {Message}", url, attempt, ex.Message);
+                    }
+                }
+
+                Thread.Sleep(250);
+            }
+
+            Log.Warning("Local interface did not become ready before window load; loading anyway: {AppUrl}", url);
         }
 
         private static void StartNamedPipeServer()
