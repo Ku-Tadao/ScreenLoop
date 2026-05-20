@@ -477,8 +477,9 @@ namespace ScreenLoop.Backend.App
 
         private static void LoadFrontend()
         {
-            Log.Information("Loading frontend, app url is " + appUrl);
-            WaitForLocalInterface(appUrl);
+            string frontendUrl = BuildFrontendUrl();
+            Log.Information("Loading frontend, app url is " + frontendUrl);
+            WaitForLocalInterface(frontendUrl);
 
             // Initialize the PhotinoWindow
             Window = new PhotinoWindow()
@@ -494,9 +495,11 @@ namespace ScreenLoop.Backend.App
                     Window = (PhotinoWindow)sender!;
                     _ = MessageService.HandleMessage(message);
                 })
-                .Load(appUrl);
+                .RegisterWindowCreatedHandler(OnPhotinoWindowCreated)
+                .Load(frontendUrl);
 
             Log.Information("Window variable has been set");
+            ScheduleFrontendReload(Window, 1500, "post-create fallback");
 
             // intentional space after name because of https://github.com/tryphotino/photino.NET/issues/106
             Window.SetTitle("ScreenLoop ");
@@ -508,6 +511,46 @@ namespace ScreenLoop.Backend.App
             });
 
             Window.WaitForClose();
+        }
+
+        private static void OnPhotinoWindowCreated(object? sender, EventArgs eventArgs)
+        {
+            if (sender is not PhotinoWindow window)
+            {
+                return;
+            }
+
+            ScheduleFrontendReload(window, 750, "window-created");
+        }
+
+        private static void ScheduleFrontendReload(PhotinoWindow window, int delayMs, string reason)
+        {
+            string reloadUrl = BuildFrontendUrl();
+            Log.Information("Scheduling frontend reload ({Reason}) to {AppUrl}", reason, reloadUrl);
+
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(delayMs);
+
+                try
+                {
+                    window.Invoke(() =>
+                    {
+                        Log.Information("Reloading frontend ({Reason}) to {AppUrl}", reason, reloadUrl);
+                        window.Load(reloadUrl);
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Failed to reload frontend ({Reason})", reason);
+                }
+            });
+        }
+
+        private static string BuildFrontendUrl()
+        {
+            string separator = appUrl.Contains('?') ? "&" : "?";
+            return $"{appUrl}{separator}screenloop_boot={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
         }
 
         private static void WaitForLocalInterface(string url)
