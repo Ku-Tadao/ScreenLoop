@@ -239,6 +239,10 @@ namespace ScreenLoop.Backend.App
                 // Check if application was launched from startup
                 bool startMinimized = IsLaunchedFromStartup();
                 Log.Information($"Starting application{(startMinimized ? " minimized from startup" : "")}");
+                if (Settings.Instance.RunOnStartup)
+                {
+                    StartupService.SetStartupStatus(true);
+                }
 
                 AddNotifyIcon();
 

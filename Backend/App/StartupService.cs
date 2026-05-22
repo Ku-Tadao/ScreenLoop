@@ -9,15 +9,15 @@ namespace ScreenLoop.Backend.App
         {
             try
             {
-                string exePath = Path.ChangeExtension(Assembly.GetExecutingAssembly().Location, ".exe");
-                if (exePath == null)
+                string? exePath = ResolveStartupExecutablePath();
+                if (string.IsNullOrWhiteSpace(exePath))
                 {
                     Log.Error("Failed to get executable path");
                     return;
                 }
                 string startupFolder = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
                 string linkPath = Path.Combine(startupFolder, "ScreenLoop.lnk");
-                if (enable && !File.Exists(linkPath))
+                if (enable)
                 {
                     Type shellType = Type.GetTypeFromProgID("WScript.Shell")!;
                     object shell = Activator.CreateInstance(shellType)!;
@@ -32,7 +32,7 @@ namespace ScreenLoop.Backend.App
                     }
                     shortcut.GetType().InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, shortcut, new object[] { workingDir });
                     shortcut.GetType().InvokeMember("Save", BindingFlags.InvokeMethod, null, shortcut, null);
-                    Log.Information("Added ScreenLoop to startup");
+                    Log.Information("Added or repaired ScreenLoop startup shortcut: {ExePath}", exePath);
                 }
                 else if (!enable && File.Exists(linkPath))
                 {
@@ -58,6 +58,22 @@ namespace ScreenLoop.Backend.App
                 Log.Error(ex.Message);
                 return false;
             }
+        }
+
+        private static string? ResolveStartupExecutablePath()
+        {
+            string installedExePath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ScreenLoop",
+                "current",
+                "ScreenLoop.exe");
+
+            if (File.Exists(installedExePath))
+            {
+                return installedExePath;
+            }
+
+            return Path.ChangeExtension(Assembly.GetExecutingAssembly().Location, ".exe");
         }
     }
 }
