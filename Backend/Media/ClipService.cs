@@ -272,6 +272,28 @@ namespace ScreenLoop.Backend.Media
             };
         }
 
+        private static string GetAudioCodecArgs(Settings settings)
+        {
+            string codec = settings.ClipAudioCodec.Equals("opus", StringComparison.OrdinalIgnoreCase)
+                ? "libopus"
+                : "aac";
+
+            return $"-c:a {codec} -b:a {settings.ClipAudioQuality}";
+        }
+
+        private static string GetClipScaleFilter(string clipResolution)
+        {
+            return clipResolution.ToLowerInvariant() switch
+            {
+                "480p" => "scale=-2:480",
+                "720p" => "scale=-2:720",
+                "1080p" => "scale=-2:1080",
+                "1440p" => "scale=-2:1440",
+                "4k" => "scale=-2:2160",
+                _ => ""
+            };
+        }
+
         private static async Task ExtractClip(int clipId, string inputFilePath, string outputFilePath, double startTime, double endTime,
                             List<string>? audioTrackNames, List<int>? mutedAudioTracks, Dictionary<int, double>? audioTrackVolumes, List<string>? targetAudioLayout, Action<double> progressCallback)
         {
@@ -577,15 +599,40 @@ namespace ScreenLoop.Backend.Media
             }
 
             string verboseFlag = filterArgs.Length > 0 || extraInputArgs.Length > 0 ? "-v verbose " : "";
+            string scaleFilter = GetClipScaleFilter(settings.ClipResolution);
+            string videoFilterArgs = "";
+
+            if (!string.IsNullOrWhiteSpace(scaleFilter))
+            {
+                if (filterArgs.Length > 0)
+                {
+                    string existingFilter = filterArgs.Replace("-filter_complex \"", "").TrimEnd();
+                    if (existingFilter.EndsWith("\"", StringComparison.Ordinal))
+                    {
+                        existingFilter = existingFilter[..^1];
+                    }
+
+                    filterArgs = $"-filter_complex \"[0:v:0]{scaleFilter}[out_v];{existingFilter}\" ";
+                    mapArgs = mapArgs.Contains("-map 0:v:0", StringComparison.Ordinal)
+                        ? mapArgs.Replace("-map 0:v:0", "-map \"[out_v]\"")
+                        : $"-map \"[out_v]\" {mapArgs}";
+                }
+                else
+                {
+                    videoFilterArgs = $"-vf {scaleFilter} ";
+                }
+            }
+
             // When using the union layout, force a consistent sample rate on every output audio stream.
             // Source tracks may be 44.1 kHz while the anullsrc silence inputs are 48 kHz, so without this
             // each temp clip's per-slot sample rate depends on whether the slot got real audio or silence.
             // The concat demuxer then uses the first clip's stream params for subsequent clips, playing
             // mismatched samples at the wrong rate (the reported "shrunken audio").
             string audioRateArg = targetAudioLayout != null ? "-ar 48000 " : "";
+            string audioCodecArgs = GetAudioCodecArgs(settings);
             string arguments = $"-y {verboseFlag}-ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
                              $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
-                             $"-c:a aac -b:a {settings.ClipAudioQuality} {audioRateArg}{metadataArgs}-t {duration.ToString(CultureInfo.InvariantCulture)} -movflags +faststart \"{outputFilePath}\"";
+                             $"{videoFilterArgs}{audioCodecArgs} {audioRateArg}{metadataArgs}-t {duration.ToString(CultureInfo.InvariantCulture)} -movflags +faststart \"{outputFilePath}\"";
             Log.Information("Extracting clip");
             Log.Information($"FFmpeg arguments: {arguments}");
 

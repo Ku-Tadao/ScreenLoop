@@ -59,11 +59,13 @@ namespace ScreenLoop.Backend.Core.Models
         private bool _clipClearSegmentsAfterCreatingClip = false;
         private bool _clipShowInBrowserAfterUpload = false;
         private string _clipEncoder = "cpu";
-        private int _clipQualityCpu = 23; // CPU CRF: 17 (High) to 28 (Low)
+        private int _clipQualityCpu = 23; // CPU CRF: 17 (High) to 40 (Smallest)
         private int _clipQualityGpu = 23; // GPU (CQ/QP/ICQ): 0-1 (High) to 51 (Low)
         private string _clipCodec = "h264";
+        private string _clipResolution = "Original";
         private int _clipFps = 60; // 0 for 'Original'
         private string _clipAudioQuality = "128k";
+        private string _clipAudioCodec = "opus";
         private string _clipPreset = "veryfast";
         private bool _clipKeepSeparateAudioTracks = false;
         private float _soundEffectsVolume = 0.5f;
@@ -613,6 +615,19 @@ namespace ScreenLoop.Backend.Core.Models
             }
         }
 
+        [JsonPropertyName("clipResolution")]
+        public string ClipResolution
+        {
+            get => _clipResolution;
+            set
+            {
+                if (_clipResolution != value)
+                {
+                    _clipResolution = value;
+                }
+            }
+        }
+
         [JsonPropertyName("clipFps")]
         public int ClipFps
         {
@@ -635,6 +650,19 @@ namespace ScreenLoop.Backend.Core.Models
                 if (_clipAudioQuality != value)
                 {
                     _clipAudioQuality = value;
+                }
+            }
+        }
+
+        [JsonPropertyName("clipAudioCodec")]
+        public string ClipAudioCodec
+        {
+            get => _clipAudioCodec;
+            set
+            {
+                if (_clipAudioCodec != value)
+                {
+                    _clipAudioCodec = value;
                 }
             }
         }

@@ -246,9 +246,12 @@ namespace ScreenLoop.Backend.Media
                 FileName = FFmpegExecutable,
                 RedirectStandardError = true,
                 RedirectStandardOutput = true,
+                RedirectStandardInput = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
+
+            processStartInfo.ArgumentList.Add("-nostdin");
 
             foreach (var arg in arguments)
             {
@@ -266,12 +269,22 @@ namespace ScreenLoop.Backend.Media
                     process.ErrorDataReceived += (sender, e) => { };
 
                     process.Start();
+                    process.StandardInput.Close();
 
                     // Begin async reading to prevent buffer deadlock
                     process.BeginOutputReadLine();
                     process.BeginErrorReadLine();
 
-                    await process.WaitForExitAsync();
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                    try
+                    {
+                        await process.WaitForExitAsync(cts.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        try { process.Kill(entireProcessTree: true); } catch { }
+                        throw new TimeoutException("FFmpeg helper process timed out.");
+                    }
 
                     Log.Information($"FFmpeg process completed with exit code: {process.ExitCode}");
 
@@ -561,6 +574,7 @@ namespace ScreenLoop.Backend.Media
 
             var arguments = new[]
             {
+                "-y",
                 "-ss", midpointTime,
                 "-i", inputFilePath,
                 "-vf", $"scale={width}:-1",
@@ -581,6 +595,7 @@ namespace ScreenLoop.Backend.Media
         {
             var args = new List<string>
             {
+                "-y",
                 "-i", inputFilePath,
                 "-vn",
             };

@@ -153,8 +153,10 @@ export interface GameIntegrations {
 
 export type ClipEncoder = 'gpu' | 'cpu';
 export type ClipCodec = 'h264' | 'h265' | 'av1';
+export type ClipResolution = 'Original' | '480p' | '720p' | '1080p' | '1440p' | '4K';
 export type ClipFPS = 0 | 24 | 30 | 60 | 120 | 144;
-export type ClipAudioQuality = '96k' | '128k' | '192k' | '256k' | '320k';
+export type ClipAudioQuality = '64k' | '96k' | '128k' | '192k' | '256k' | '320k';
+export type ClipAudioCodec = 'opus' | 'aac';
 export type CpuClipPreset =
   | 'ultrafast'
   | 'superfast'
@@ -260,11 +262,13 @@ export interface Settings {
   replayBufferMaxSize: number; // in MB
   clipClearSegmentsAfterCreatingClip: boolean;
   clipEncoder: ClipEncoder;
-  clipQualityCpu: number; // CPU CRF: 17 (High) to 28 (Low)
+  clipQualityCpu: number; // CPU CRF: 17 (High) to 40 (Smallest)
   clipQualityGpu: number; // GPU (CQ/QP/ICQ): 0-1 (High) to 51 (Low)
   clipCodec: ClipCodec;
+  clipResolution: ClipResolution;
   clipFps: ClipFPS;
   clipAudioQuality: ClipAudioQuality;
+  clipAudioCodec: ClipAudioCodec;
   clipPreset: ClipPreset;
   clipKeepSeparateAudioTracks: boolean;
   keybindings: Keybind[];
@@ -340,8 +344,10 @@ export const initialSettings: Settings = {
   clipQualityCpu: 23,
   clipQualityGpu: 23,
   clipCodec: 'h264',
+  clipResolution: 'Original',
   clipFps: 60,
   clipAudioQuality: '128k',
+  clipAudioCodec: 'opus',
   clipPreset: 'veryfast',
   clipKeepSeparateAudioTracks: false,
   soundEffectsVolume: 1,

@@ -289,6 +289,14 @@ namespace ScreenLoop.Backend.Services
                 hasChanges = true;
             }
 
+            // Update ClipResolution
+            if (settings.ClipResolution != updatedSettings.ClipResolution)
+            {
+                Log.Information($"ClipResolution changed from '{settings.ClipResolution}' to '{updatedSettings.ClipResolution}'");
+                settings.ClipResolution = updatedSettings.ClipResolution;
+                hasChanges = true;
+            }
+
             // Update ClipFps
             if (settings.ClipFps != updatedSettings.ClipFps)
             {
@@ -302,6 +310,14 @@ namespace ScreenLoop.Backend.Services
             {
                 Log.Information($"ClipAudioQuality changed from '{settings.ClipAudioQuality}' to '{updatedSettings.ClipAudioQuality}'");
                 settings.ClipAudioQuality = updatedSettings.ClipAudioQuality;
+                hasChanges = true;
+            }
+
+            // Update ClipAudioCodec
+            if (settings.ClipAudioCodec != updatedSettings.ClipAudioCodec)
+            {
+                Log.Information($"ClipAudioCodec changed from '{settings.ClipAudioCodec}' to '{updatedSettings.ClipAudioCodec}'");
+                settings.ClipAudioCodec = updatedSettings.ClipAudioCodec;
                 hasChanges = true;
             }
 

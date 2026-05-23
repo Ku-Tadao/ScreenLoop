@@ -6,6 +6,9 @@ import {
   ClipFPS,
   ClipPreset,
   ClipQualityPreset,
+  ClipResolution,
+  ClipAudioCodec,
+  ClipAudioQuality,
 } from '../../Models/types';
 import { sendMessageToBackend } from '../../Utils/MessageUtils';
 import { useAppState } from '../../Context/AppStateContext';
@@ -230,7 +233,19 @@ export default function ClipSettingsSection({
                       { value: '25', label: '25' },
                       { value: '26', label: '26 (Low Quality)' },
                       { value: '27', label: '27' },
-                      { value: '28', label: '28 (Lowest Quality)' },
+                      { value: '28', label: '28' },
+                      { value: '29', label: '29' },
+                      { value: '30', label: '30 (Small)' },
+                      { value: '31', label: '31' },
+                      { value: '32', label: '32' },
+                      { value: '33', label: '33' },
+                      { value: '34', label: '34' },
+                      { value: '35', label: '35 (Smaller)' },
+                      { value: '36', label: '36' },
+                      { value: '37', label: '37' },
+                      { value: '38', label: '38' },
+                      { value: '39', label: '39' },
+                      { value: '40', label: '40 (Smallest)' },
                     ]}
                     value={String(settings.clipQualityCpu)}
                     onChange={(val) => updateSettings({ clipQualityCpu: Number(val) })}
@@ -362,6 +377,25 @@ export default function ClipSettingsSection({
                 />
               </div>
 
+              {/* Resolution */}
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text text-base-content">Resolution</span>
+                </label>
+                <DropdownSelect
+                  items={[
+                    { value: 'Original', label: 'Original Resolution' },
+                    { value: '480p', label: '480p' },
+                    { value: '720p', label: '720p' },
+                    { value: '1080p', label: '1080p' },
+                    { value: '1440p', label: '1440p' },
+                    { value: '4K', label: '4K' },
+                  ]}
+                  value={settings.clipResolution}
+                  onChange={(val) => updateSettings({ clipResolution: val as ClipResolution })}
+                />
+              </div>
+
               {/* FPS */}
               <div className="form-control">
                 <label className="label">
@@ -384,10 +418,11 @@ export default function ClipSettingsSection({
               {/* Audio Quality */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Audio Quality</span>
+                  <span className="label-text text-base-content">Audio Bitrate</span>
                 </label>
                 <DropdownSelect
                   items={[
+                    { value: '64k', label: '64 kbps (Tiny)' },
                     { value: '96k', label: '96 kbps (Low)' },
                     { value: '128k', label: '128 kbps (Medium)' },
                     { value: '192k', label: '192 kbps (High)' },
@@ -397,9 +432,24 @@ export default function ClipSettingsSection({
                   value={settings.clipAudioQuality}
                   onChange={(val) =>
                     updateSettings({
-                      clipAudioQuality: val as '96k' | '128k' | '192k' | '256k' | '320k',
+                      clipAudioQuality: val as ClipAudioQuality,
                     })
                   }
+                />
+              </div>
+
+              {/* Audio Codec */}
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text text-base-content">Audio Codec</span>
+                </label>
+                <DropdownSelect
+                  items={[
+                    { value: 'opus', label: 'Opus' },
+                    { value: 'aac', label: 'AAC' },
+                  ]}
+                  value={settings.clipAudioCodec}
+                  onChange={(val) => updateSettings({ clipAudioCodec: val as ClipAudioCodec })}
                 />
               </div>
 
