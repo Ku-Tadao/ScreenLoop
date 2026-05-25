@@ -17,9 +17,20 @@ namespace ScreenLoop.Backend.Media
         private static readonly Dictionary<int, List<Process>> ActiveFFmpegProcesses = new Dictionary<int, List<Process>>();
         // Lock for thread safety
         private static readonly object ProcessLock = new object();
+        private static int ActiveClipJobCount = 0;
 
         public static async Task CreateClips(List<Segment> segments)
         {
+            if (Interlocked.Exchange(ref ActiveClipJobCount, 1) == 1)
+            {
+                Log.Warning("CreateClip ignored because another clip job is already running.");
+                await MessageService.ShowModal(
+                    "Clip already running",
+                    "ScreenLoop is already creating a clip. Wait for it to finish before starting another one.",
+                    "info");
+                return;
+            }
+
             int id = Guid.NewGuid().GetHashCode();
             List<string> tempClipFiles = new List<string>();
             string? concatFilePath = null;
@@ -236,6 +247,7 @@ namespace ScreenLoop.Backend.Media
             }
             finally
             {
+                Interlocked.Exchange(ref ActiveClipJobCount, 0);
                 // Always cleanup temp files
                 tempClipFiles.ForEach(SafeDelete);
                 if (!string.IsNullOrEmpty(concatFilePath))

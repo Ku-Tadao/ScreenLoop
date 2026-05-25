@@ -8,6 +8,7 @@ import { useSelectedVideo } from '../Context/SelectedVideoContext';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useSegments } from '../Context/SegmentsContext';
+import { useClipping } from '../Context/ClippingContext';
 import type { LucideIcon } from 'lucide-react';
 import { Icon } from 'lucide-react';
 import { crosshair2Dot, soccerBall } from '@lucide/lab';
@@ -199,6 +200,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     updateSegmentsArray,
     clearAllSegments,
   } = useSegments();
+  const { clippingProgress } = useClipping();
 
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -368,6 +370,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   const [containerWidth, setContainerWidth] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [showNoSegmentsIndicator, setShowNoSegmentsIndicator] = useState(false);
+  const [isClipCreatePending, setIsClipCreatePending] = useState(false);
   const [volume, setVolume] = useState(() => {
     // Initialize volume from localStorage or default to 1
     const savedVolume = localStorage.getItem('ScreenLoop-volume');
@@ -1138,6 +1141,10 @@ export default function VideoComponent({ video }: { video: Content }) {
 
   // Create a clip from current segments
   const handleCreateClip = () => {
+    if (isClipCreatePending || Object.keys(clippingProgress).length > 0) {
+      return;
+    }
+
     if (segments.length === 0) {
       setShowNoSegmentsIndicator(true);
       setTimeout(() => setShowNoSegmentsIndicator(false), 2000);
@@ -1159,8 +1166,15 @@ export default function VideoComponent({ video }: { video: Content }) {
         audioTrackVolumes: s.audioTrackVolumes,
       })),
     };
+    setIsClipCreatePending(true);
     sendMessageToBackend('CreateClip', params);
   };
+
+  useEffect(() => {
+    if (Object.keys(clippingProgress).length > 0) {
+      setIsClipCreatePending(false);
+    }
+  }, [clippingProgress]);
 
   // Handle segment drag and drop operations (drag start removed to allow segment click-through)
 
@@ -2187,9 +2201,11 @@ export default function VideoComponent({ video }: { video: Content }) {
                     size="sm"
                     className="h-10 gap-1 hover:text-accent"
                     onClick={handleCreateClip}
+                    loading={isClipCreatePending}
+                    disabled={isClipCreatePending || Object.keys(clippingProgress).length > 0}
                   >
                     <Clapperboard className="w-5 h-5" />
-                    <span>Create Clip</span>
+                    <span>{isClipCreatePending ? 'Creating...' : 'Create Clip'}</span>
                   </Button>
                   <div className="indicator">
                     <Button
