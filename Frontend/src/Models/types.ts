@@ -238,8 +238,8 @@ export interface Settings {
   crfValue: number;
   cqLevel: number;
   bitrate: number;
-  minBitrate: number; // VBR only (Mbps)
-  maxBitrate: number; // VBR only (Mbps)
+  minBitrate: number; // VBR only (Kbps)
+  maxBitrate: number; // VBR only (Kbps)
   encoder: 'gpu' | 'cpu';
   codec: Codec | null;
   storageLimit: number;
@@ -316,9 +316,9 @@ export const initialSettings: Settings = {
   rateControl: 'VBR',
   crfValue: 23,
   cqLevel: 20,
-  bitrate: 50,
-  minBitrate: 35,
-  maxBitrate: 70,
+  bitrate: 50000,
+  minBitrate: 35000,
+  maxBitrate: 70000,
   encoder: 'gpu',
   codec: null,
   storageLimit: 100,

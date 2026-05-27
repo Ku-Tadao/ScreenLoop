@@ -28,9 +28,9 @@ namespace ScreenLoop.Backend.Core.Models
         private string _resolution = "1440p";
         private int _frameRate = 60;
         private bool _stretch4By3 = true;
-        private int _bitrate = 50;
-        private int _minBitrate = 35;
-        private int _maxBitrate = 70;
+        private int _bitrate = 50000;
+        private int _minBitrate = 35000;
+        private int _maxBitrate = 70000;
         private string _rateControl = "VBR";
         private int _crfValue = 23;
         private int _cqLevel = 20;
@@ -253,30 +253,37 @@ namespace ScreenLoop.Backend.Core.Models
             get => _bitrate;
             set
             {
-                _bitrate = value;
+                _bitrate = NormalizeBitrateKbps(value);
             }
         }
 
-        // Minimum bitrate in Mbps (used for VBR only)
+        // Minimum bitrate in Kbps (used for VBR only)
         [JsonPropertyName("minBitrate")]
         public int MinBitrate
         {
             get => _minBitrate;
             set
             {
-                _minBitrate = value;
+                _minBitrate = NormalizeBitrateKbps(value);
             }
         }
 
-        // Maximum bitrate in Mbps (used for VBR only)
+        // Maximum bitrate in Kbps (used for VBR only)
         [JsonPropertyName("maxBitrate")]
         public int MaxBitrate
         {
             get => _maxBitrate;
             set
             {
-                _maxBitrate = value;
+                _maxBitrate = NormalizeBitrateKbps(value);
             }
+        }
+
+        private static int NormalizeBitrateKbps(int value)
+        {
+            // Older settings stored whole Mbps (for example 4 meant 4000 Kbps).
+            // New settings store Kbps so sub-1 Mbps values like 500 are possible.
+            return value > 0 && value < 100 ? value * 1000 : value;
         }
 
         [JsonPropertyName("encoder")]

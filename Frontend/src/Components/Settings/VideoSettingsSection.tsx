@@ -29,8 +29,8 @@ const fpsOptions = [10, 20, 30, 60, 90, 120];
 
 function getBufferMaxSizeMb(settings: SettingsType, updates: Partial<SettingsType> = {}) {
   const next = { ...settings, ...updates };
-  const bitrateMbps = next.rateControl === 'CBR' ? next.bitrate : next.maxBitrate;
-  const estimatedVideoMb = (bitrateMbps * next.replayBufferDuration) / 8;
+  const bitrateKbps = next.rateControl === 'CBR' ? next.bitrate : next.maxBitrate;
+  const estimatedVideoMb = (bitrateKbps * next.replayBufferDuration) / 8000;
   return Math.max(128, Math.ceil(estimatedVideoMb * 1.15 + 32));
 }
 
@@ -40,7 +40,7 @@ export default function VideoSettingsSection({
 }: VideoSettingsSectionProps) {
   const appState = useAppState();
 
-  const bitrateKbps = settings.rateControl === 'CBR' ? settings.bitrate * 1000 : settings.maxBitrate * 1000;
+  const bitrateKbps = settings.rateControl === 'CBR' ? settings.bitrate : settings.maxBitrate;
   const bufferEstimateMb = getBufferMaxSizeMb(settings);
   const bufferSizeTooltip = `Calculated as bitrate x buffer length / 8, plus 15% overhead and 32 MB safety. Current cap: ${settings.replayBufferMaxSize} MB.`;
   const availableRecordingCodecs = appState.codecs.filter((codec) =>
@@ -62,9 +62,9 @@ export default function VideoSettingsSection({
             frameRate: 30,
             rateControl: 'VBR',
             cqLevel: isAmd ? 22 : 24,
-            bitrate: isAmd ? 20 : 15,
-            minBitrate: 10,
-            maxBitrate: isAmd ? 20 : 15,
+            bitrate: isAmd ? 20000 : 15000,
+            minBitrate: 10000,
+            maxBitrate: isAmd ? 20000 : 15000,
             encoder: 'gpu',
           }
         : preset === 'standard'
@@ -74,9 +74,9 @@ export default function VideoSettingsSection({
               frameRate: 60,
               rateControl: 'VBR',
               cqLevel: isAmd ? 20 : 22,
-              bitrate: isAmd ? 40 : 30,
-              minBitrate: isAmd ? 25 : 20,
-              maxBitrate: isAmd ? 50 : 40,
+              bitrate: isAmd ? 40000 : 30000,
+              minBitrate: isAmd ? 25000 : 20000,
+              maxBitrate: isAmd ? 50000 : 40000,
               encoder: 'gpu',
             }
           : preset === 'high'
@@ -86,9 +86,9 @@ export default function VideoSettingsSection({
                 frameRate: 60,
                 rateControl: 'VBR',
                 cqLevel: isAmd ? 18 : 20,
-                bitrate: isAmd ? 60 : 50,
-                minBitrate: isAmd ? 45 : 40,
-                maxBitrate: isAmd ? 90 : 70,
+                bitrate: isAmd ? 60000 : 50000,
+                minBitrate: isAmd ? 45000 : 40000,
+                maxBitrate: isAmd ? 90000 : 70000,
                 encoder: 'gpu',
               }
             : { videoQualityPreset: 'custom' };
@@ -195,22 +195,22 @@ export default function VideoSettingsSection({
         <div className="grid grid-cols-[140px_1fr] items-center gap-3">
           <label className="text-lg text-screen-muted">Bitrate (Kbps)</label>
           <DropdownSelect
-            items={[4000, 6000, 9000, 12000, 18000, 24000, 35000, 50000, 70000].map((value) => ({
+            items={[400, 500, 600, 800, 1000, 1500, 2500, 4000, 6000, 9000, 12000, 18000, 24000, 35000, 50000, 70000].map((value) => ({
               value: String(value),
               label: String(value),
             }))}
             value={String(bitrateKbps)}
             onChange={(val) => {
-              const mbps = Math.max(1, Math.round(Number(val) / 1000));
+              const kbps = Math.max(100, Math.round(Number(val)));
               updateSettings({
                 rateControl: 'CBR',
-                bitrate: mbps,
-                minBitrate: Math.max(1, Math.round(mbps * 0.7)),
-                maxBitrate: mbps,
+                bitrate: kbps,
+                minBitrate: Math.max(100, Math.round(kbps * 0.7)),
+                maxBitrate: kbps,
                 replayBufferMaxSize: getBufferMaxSizeMb(settings, {
                   rateControl: 'CBR',
-                  bitrate: mbps,
-                  maxBitrate: mbps,
+                  bitrate: kbps,
+                  maxBitrate: kbps,
                 }),
                 videoQualityPreset: 'custom',
               });

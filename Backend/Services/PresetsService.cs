@@ -9,8 +9,8 @@ namespace ScreenLoop.Backend.Services
     {
         private static int CalculateReplayBufferMaxSizeMb(Settings settings)
         {
-            int bitrateMbps = settings.RateControl == "CBR" ? settings.Bitrate : settings.MaxBitrate;
-            double estimatedVideoMb = bitrateMbps * settings.ReplayBufferDuration / 8.0;
+            int bitrateKbps = settings.RateControl == "CBR" ? settings.Bitrate : settings.MaxBitrate;
+            double estimatedVideoMb = bitrateKbps * settings.ReplayBufferDuration / 8000.0;
             return Math.Max(128, (int)Math.Ceiling(estimatedVideoMb * 1.15 + 32));
         }
 
@@ -39,9 +39,9 @@ namespace ScreenLoop.Backend.Services
                         settings.FrameRate = 30;
                         settings.RateControl = "VBR";
                         settings.CqLevel = isAmd ? 22 : 24;
-                        settings.Bitrate = isAmd ? 20 : 15;
-                        settings.MinBitrate = 10;
-                        settings.MaxBitrate = isAmd ? 20 : 15;
+                        settings.Bitrate = isAmd ? 20000 : 15000;
+                        settings.MinBitrate = 10000;
+                        settings.MaxBitrate = isAmd ? 20000 : 15000;
                         settings.Encoder = "gpu";
                         settings.ReplayBufferMaxSize = CalculateReplayBufferMaxSizeMb(settings);
                         break;
@@ -52,9 +52,9 @@ namespace ScreenLoop.Backend.Services
                         settings.FrameRate = 60;
                         settings.RateControl = "VBR";
                         settings.CqLevel = isAmd ? 20 : 22;
-                        settings.Bitrate = isAmd ? 40 : 30;
-                        settings.MinBitrate = isAmd ? 25 : 20;
-                        settings.MaxBitrate = isAmd ? 50 : 40;
+                        settings.Bitrate = isAmd ? 40000 : 30000;
+                        settings.MinBitrate = isAmd ? 25000 : 20000;
+                        settings.MaxBitrate = isAmd ? 50000 : 40000;
                         settings.Encoder = "gpu";
                         settings.ReplayBufferMaxSize = CalculateReplayBufferMaxSizeMb(settings);
                         break;
@@ -65,9 +65,9 @@ namespace ScreenLoop.Backend.Services
                         settings.FrameRate = 60;
                         settings.RateControl = "VBR";
                         settings.CqLevel = isAmd ? 18 : 20;
-                        settings.Bitrate = isAmd ? 60 : 50;
-                        settings.MinBitrate = isAmd ? 45 : 40;
-                        settings.MaxBitrate = isAmd ? 90 : 70;
+                        settings.Bitrate = isAmd ? 60000 : 50000;
+                        settings.MinBitrate = isAmd ? 45000 : 40000;
+                        settings.MaxBitrate = isAmd ? 90000 : 70000;
                         settings.Encoder = "gpu";
                         settings.ReplayBufferMaxSize = CalculateReplayBufferMaxSizeMb(settings);
                         break;

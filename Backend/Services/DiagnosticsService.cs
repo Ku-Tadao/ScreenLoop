@@ -377,7 +377,7 @@ namespace ScreenLoop.Backend.Services
             else
                 Log.Information("Codec: <null>");
             Log.Information($"Resolution: {s.Resolution} @ {s.FrameRate} fps (stretch4By3={s.Stretch4By3})");
-            Log.Information($"Bitrate: {s.Bitrate} Mbps (min={s.MinBitrate}, max={s.MaxBitrate})");
+            Log.Information($"Bitrate: {s.Bitrate} Kbps (min={s.MinBitrate}, max={s.MaxBitrate})");
             Log.Information($"Rate control: {s.RateControl} (CRF={s.CrfValue}, CQ={s.CqLevel})");
             Log.Information($"Video quality preset: {s.VideoQualityPreset}");
             Log.Information($"Recording mode: {s.RecordingMode}");

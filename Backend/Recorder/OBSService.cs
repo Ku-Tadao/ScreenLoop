@@ -522,15 +522,15 @@ namespace ScreenLoop.Backend.Recorder
             switch (Settings.Instance.RateControl)
             {
                 case "CBR":
-                    int targetBitrateKbps = Settings.Instance.Bitrate * 1000;
+                    int targetBitrateKbps = Settings.Instance.Bitrate;
                     videoEncoderSettings.Set("bitrate", targetBitrateKbps);
                     videoEncoderSettings.Set("max_bitrate", targetBitrateKbps);
                     videoEncoderSettings.Set("bufsize", targetBitrateKbps);
                     break;
 
                 case "VBR":
-                    int minBitrateKbps = Settings.Instance.MinBitrate * 1000;
-                    int maxBitrateKbps = Settings.Instance.MaxBitrate * 1000;
+                    int minBitrateKbps = Settings.Instance.MinBitrate;
+                    int maxBitrateKbps = Settings.Instance.MaxBitrate;
                     videoEncoderSettings.Set("bitrate", minBitrateKbps);
                     videoEncoderSettings.Set("max_bitrate", maxBitrateKbps);
                     videoEncoderSettings.Set("bufsize", maxBitrateKbps);

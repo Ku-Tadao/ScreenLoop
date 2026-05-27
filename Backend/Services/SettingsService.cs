@@ -533,7 +533,7 @@ namespace ScreenLoop.Backend.Services
             // Update Bitrate
             if (settings.Bitrate != updatedSettings.Bitrate)
             {
-                Log.Information($"Bitrate changed from '{settings.Bitrate} Mbps' to '{updatedSettings.Bitrate} Mbps'");
+                Log.Information($"Bitrate changed from '{settings.Bitrate} Kbps' to '{updatedSettings.Bitrate} Kbps'");
                 settings.Bitrate = updatedSettings.Bitrate;
                 hasChanges = true;
             }
@@ -541,7 +541,7 @@ namespace ScreenLoop.Backend.Services
             // Update MinBitrate (VBR only)
             if (settings.MinBitrate != updatedSettings.MinBitrate)
             {
-                Log.Information($"MinBitrate changed from '{settings.MinBitrate} Mbps' to '{updatedSettings.MinBitrate} Mbps'");
+                Log.Information($"MinBitrate changed from '{settings.MinBitrate} Kbps' to '{updatedSettings.MinBitrate} Kbps'");
                 settings.MinBitrate = updatedSettings.MinBitrate;
                 hasChanges = true;
             }
@@ -549,7 +549,7 @@ namespace ScreenLoop.Backend.Services
             // Update MaxBitrate (VBR only)
             if (settings.MaxBitrate != updatedSettings.MaxBitrate)
             {
-                Log.Information($"MaxBitrate changed from '{settings.MaxBitrate} Mbps' to '{updatedSettings.MaxBitrate} Mbps'");
+                Log.Information($"MaxBitrate changed from '{settings.MaxBitrate} Kbps' to '{updatedSettings.MaxBitrate} Kbps'");
                 settings.MaxBitrate = updatedSettings.MaxBitrate;
                 hasChanges = true;
             }
