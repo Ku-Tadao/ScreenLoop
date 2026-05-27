@@ -264,6 +264,7 @@ export interface Settings {
   clipEncoder: ClipEncoder;
   clipQualityCpu: number; // CPU CRF: 0 (lossless/highest) to 63 (smallest for SVT-AV1)
   clipQualityGpu: number; // GPU (CQ/QP/ICQ): 0-1 (High) to 51 (Low)
+  clipVideoBitrate: number; // Kbps. 0 means quality-based mode (CRF/CQ only).
   clipCodec: ClipCodec;
   clipResolution: ClipResolution;
   clipFps: ClipFPS;
@@ -343,6 +344,7 @@ export const initialSettings: Settings = {
   clipEncoder: 'cpu',
   clipQualityCpu: 23,
   clipQualityGpu: 23,
+  clipVideoBitrate: 4000,
   clipCodec: 'h264',
   clipResolution: 'Original',
   clipFps: 60,

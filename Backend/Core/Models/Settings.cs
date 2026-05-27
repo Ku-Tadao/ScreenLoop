@@ -61,6 +61,7 @@ namespace ScreenLoop.Backend.Core.Models
         private string _clipEncoder = "cpu";
         private int _clipQualityCpu = 23; // CPU CRF: 0 (lossless/highest) to 63 (smallest for SVT-AV1)
         private int _clipQualityGpu = 23; // GPU (CQ/QP/ICQ): 0-1 (High) to 51 (Low)
+        private int _clipVideoBitrate = 4000; // Kbps. 0 means quality-based mode (CRF/CQ only).
         private string _clipCodec = "h264";
         private string _clipResolution = "Original";
         private int _clipFps = 60; // 0 for 'Original'
@@ -606,6 +607,17 @@ namespace ScreenLoop.Backend.Core.Models
                 {
                     _clipQualityGpu = value;
                 }
+            }
+        }
+
+        [JsonPropertyName("clipVideoBitrate")]
+        public int ClipVideoBitrate
+        {
+            get => _clipVideoBitrate;
+            set
+            {
+                int normalized = NormalizeBitrateKbps(value);
+                _clipVideoBitrate = Math.Clamp(normalized, 0, 100000);
             }
         }
 

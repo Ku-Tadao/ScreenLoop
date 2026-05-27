@@ -131,6 +131,24 @@ export default function ClipSettingsSection({
     sendMessageToBackend('ApplyClipPreset', { preset });
   };
 
+  const clipBitrateItems = [
+    { value: '0', label: 'Quality based (CRF/CQ)' },
+    { value: '400', label: '400 Kbps (tiny AV1)' },
+    { value: '600', label: '600 Kbps' },
+    { value: '800', label: '800 Kbps' },
+    { value: '1000', label: '1 Mbps' },
+    { value: '1500', label: '1.5 Mbps' },
+    { value: '2500', label: '2.5 Mbps' },
+    { value: '4000', label: '4 Mbps' },
+    { value: '6000', label: '6 Mbps' },
+    { value: '8000', label: '8 Mbps' },
+    { value: '12000', label: '12 Mbps' },
+    { value: '16000', label: '16 Mbps' },
+    { value: '24000', label: '24 Mbps' },
+    { value: '35000', label: '35 Mbps' },
+    { value: '50000', label: '50 Mbps' },
+  ];
+
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
       <h2 className="text-xl font-semibold mb-4">Clip Settings</h2>
@@ -147,7 +165,7 @@ export default function ClipSettingsSection({
             onClick={() => handlePresetChange('low')}
           >
             <div className="text-sm font-semibold">Small File</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">AV1 CRF 50 • 30fps</div>
+            <div className="text-xs text-base-content text-opacity-70 mt-1">AV1 400 Kbps • 30fps</div>
           </button>
           <button
             type="button"
@@ -158,7 +176,7 @@ export default function ClipSettingsSection({
             onClick={() => handlePresetChange('standard')}
           >
             <div className="text-sm font-semibold">Standard</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">AV1 CRF 40 • 60fps</div>
+            <div className="text-xs text-base-content text-opacity-70 mt-1">AV1 800 Kbps • 60fps</div>
           </button>
           <button
             type="button"
@@ -169,7 +187,7 @@ export default function ClipSettingsSection({
             onClick={() => handlePresetChange('high')}
           >
             <div className="text-sm font-semibold">High Quality</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">AV1 CRF 30 • 60fps</div>
+            <div className="text-xs text-base-content text-opacity-70 mt-1">AV1 1.5 Mbps • 60fps</div>
           </button>
           <button
             type="button"
@@ -360,9 +378,11 @@ export default function ClipSettingsSection({
                     if (settings.clipEncoder === 'cpu') {
                       if (newCodec === 'av1') {
                         updates.clipPreset = 'svt-6' as ClipPreset;
+                        updates.clipVideoBitrate = 400;
                         if (settings.clipQualityCpu < 24) updates.clipQualityCpu = 30;
                       } else if (String(settings.clipPreset).startsWith('svt-')) {
                         updates.clipPreset = 'veryfast' as ClipPreset;
+                        updates.clipVideoBitrate = newCodec === 'h265' ? 4000 : 8000;
                       }
                     }
 
@@ -387,6 +407,22 @@ export default function ClipSettingsSection({
                   }}
                   disabled={!appState.hasLoadedObs}
                 />
+              </div>
+
+              {/* Video Bitrate */}
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text text-base-content">Video Bitrate</span>
+                </label>
+                <DropdownSelect
+                  items={clipBitrateItems}
+                  value={String(settings.clipVideoBitrate)}
+                  onChange={(val) => updateSettings({ clipVideoBitrate: Number(val) })}
+                />
+                <p className="mt-2 text-xs text-base-content/70">
+                  Use higher bitrates for H.264/H.265 clips. AV1 can stay much lower when compact
+                  size matters.
+                </p>
               </div>
 
               {/* Resolution */}

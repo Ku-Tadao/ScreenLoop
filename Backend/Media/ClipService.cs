@@ -293,6 +293,20 @@ namespace ScreenLoop.Backend.Media
             return $"-c:a {codec} -b:a {settings.ClipAudioQuality}";
         }
 
+        private static bool UseClipTargetBitrate(Settings settings)
+        {
+            return settings.ClipVideoBitrate > 0;
+        }
+
+        private static string GetClipBitrateArgs(Settings settings)
+        {
+            if (!UseClipTargetBitrate(settings))
+                return "";
+
+            int kbps = Math.Clamp(settings.ClipVideoBitrate, 100, 100000);
+            return $"-b:v {kbps}k";
+        }
+
         private static string GetClipScaleFilter(string clipResolution)
         {
             return clipResolution.ToLowerInvariant() switch
@@ -315,6 +329,8 @@ namespace ScreenLoop.Backend.Media
             string videoCodec;
             string qualityArgs;
             string presetArgs;
+            string bitrateArgs = GetClipBitrateArgs(settings);
+            bool useTargetBitrate = UseClipTargetBitrate(settings);
             if (settings.ClipEncoder.Equals("gpu", StringComparison.OrdinalIgnoreCase))
             {
                 // GPU encoder uses hardware-accelerated codecs based on GPU vendor
@@ -330,8 +346,7 @@ namespace ScreenLoop.Backend.Media
                         else
                             videoCodec = "h264_nvenc";
 
-                        // NVENC uses -cq for quality control and specific presets
-                        qualityArgs = $"-cq {settings.ClipQualityGpu}";
+                        qualityArgs = useTargetBitrate ? "" : $"-cq {settings.ClipQualityGpu}";
                         presetArgs = $"-preset {settings.ClipPreset}";
                         break;
 
@@ -343,8 +358,7 @@ namespace ScreenLoop.Backend.Media
                         else
                             videoCodec = "h264_amf";
 
-                        // AMF uses -rc cqp (Constant QP) rate control with -qp_i, -qp_p for quality control
-                        qualityArgs = $"-rc cqp -qp_i {settings.ClipQualityGpu} -qp_p {settings.ClipQualityGpu}";
+                        qualityArgs = useTargetBitrate ? "" : $"-rc cqp -qp_i {settings.ClipQualityGpu} -qp_p {settings.ClipQualityGpu}";
                         // Frontend sends AMD AMF usage modes directly: quality, transcoding, lowlatency, ultralowlatency
                         presetArgs = $"-usage {settings.ClipPreset}";
                         break;
@@ -357,8 +371,7 @@ namespace ScreenLoop.Backend.Media
                         else
                             videoCodec = "h264_qsv";
 
-                        // QSV uses -global_quality for ICQ mode
-                        qualityArgs = $"-global_quality {settings.ClipQualityGpu}";
+                        qualityArgs = useTargetBitrate ? "" : $"-global_quality {settings.ClipQualityGpu}";
                         presetArgs = $"-preset {settings.ClipPreset}";
                         break;
 
@@ -370,8 +383,7 @@ namespace ScreenLoop.Backend.Media
                         else
                             videoCodec = "libx264";
 
-                        // CPU codecs use -crf and standard presets
-                        qualityArgs = $"-crf {settings.ClipQualityCpu}";
+                        qualityArgs = useTargetBitrate ? "" : $"-crf {settings.ClipQualityCpu}";
                         presetArgs = $"-preset {settings.ClipPreset}";
                         break;
                 }
@@ -386,8 +398,7 @@ namespace ScreenLoop.Backend.Media
                 else
                     videoCodec = "libx264";
 
-                // CPU codecs use -crf and standard presets
-                qualityArgs = $"-crf {settings.ClipQualityCpu}";
+                qualityArgs = useTargetBitrate ? "" : $"-crf {settings.ClipQualityCpu}";
                 presetArgs = videoCodec.Equals("libsvtav1", StringComparison.OrdinalIgnoreCase)
                     ? $"-preset {MapSvtAv1Preset(settings.ClipPreset)}"
                     : $"-preset {settings.ClipPreset}";
@@ -643,7 +654,7 @@ namespace ScreenLoop.Backend.Media
             string audioRateArg = targetAudioLayout != null ? "-ar 48000 " : "";
             string audioCodecArgs = GetAudioCodecArgs(settings);
             string arguments = $"-y {verboseFlag}-ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
-                             $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {fpsArg} " +
+                             $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {bitrateArgs} {fpsArg} " +
                              $"{videoFilterArgs}{audioCodecArgs} {audioRateArg}{metadataArgs}-t {duration.ToString(CultureInfo.InvariantCulture)} -movflags +faststart \"{outputFilePath}\"";
             Log.Information("Extracting clip");
             Log.Information($"FFmpeg arguments: {arguments}");

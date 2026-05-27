@@ -493,6 +493,7 @@ namespace ScreenLoop.Backend.Services
             var s = Settings.Instance;
             Log.Information($"Clip encoder: {s.ClipEncoder}");
             Log.Information($"Clip codec: {s.ClipCodec}");
+            Log.Information($"Clip video bitrate: {s.ClipVideoBitrate} Kbps");
             Log.Information($"Clip resolution: {s.ClipResolution}");
             Log.Information($"Clip fps: {s.ClipFps}");
             Log.Information($"Clip quality CPU (CRF): {s.ClipQualityCpu}");

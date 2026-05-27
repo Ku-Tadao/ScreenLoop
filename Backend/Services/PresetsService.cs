@@ -111,6 +111,7 @@ namespace ScreenLoop.Backend.Services
                         settings.ClipEncoder = "cpu";
                         settings.ClipQualityCpu = settings.ClipCodec == "av1" ? 50 : 28;
                         settings.ClipCodec = settings.ClipCodec == "av1" ? "av1" : "h264";
+                        settings.ClipVideoBitrate = settings.ClipCodec == "av1" ? 400 : 4000;
                         settings.ClipResolution = "720p";
                         settings.ClipFps = 30;
                         settings.ClipAudioQuality = "96k";
@@ -123,6 +124,7 @@ namespace ScreenLoop.Backend.Services
                         settings.ClipEncoder = "cpu";
                         settings.ClipQualityCpu = settings.ClipCodec == "av1" ? 40 : 23;
                         settings.ClipCodec = settings.ClipCodec == "av1" ? "av1" : "h264";
+                        settings.ClipVideoBitrate = settings.ClipCodec == "av1" ? 800 : 8000;
                         settings.ClipResolution = "Original";
                         settings.ClipFps = 60;
                         settings.ClipAudioQuality = "128k";
@@ -135,6 +137,7 @@ namespace ScreenLoop.Backend.Services
                         settings.ClipEncoder = "cpu";
                         settings.ClipQualityCpu = settings.ClipCodec == "av1" ? 30 : 20;
                         settings.ClipCodec = settings.ClipCodec == "av1" ? "av1" : "h264";
+                        settings.ClipVideoBitrate = settings.ClipCodec == "av1" ? 1500 : 16000;
                         settings.ClipResolution = "Original";
                         settings.ClipFps = 60;
                         settings.ClipAudioQuality = "192k";
@@ -151,8 +154,8 @@ namespace ScreenLoop.Backend.Services
                         return;
                 }
 
-                Log.Information("Applied clip preset '{Preset}': {Encoder}, CRF {Quality}, {Codec}, {Resolution}, {Fps}fps, {AudioCodec} {Audio} audio, {EncoderPreset}",
-                    settings.ClipQualityPreset, settings.ClipEncoder, settings.ClipQualityCpu, settings.ClipCodec, settings.ClipResolution, settings.ClipFps, settings.ClipAudioCodec, settings.ClipAudioQuality, settings.ClipPreset);
+                Log.Information("Applied clip preset '{Preset}': {Encoder}, CRF {Quality}, {Codec}, {Bitrate} Kbps, {Resolution}, {Fps}fps, {AudioCodec} {Audio} audio, {EncoderPreset}",
+                    settings.ClipQualityPreset, settings.ClipEncoder, settings.ClipQualityCpu, settings.ClipCodec, settings.ClipVideoBitrate, settings.ClipResolution, settings.ClipFps, settings.ClipAudioCodec, settings.ClipAudioQuality, settings.ClipPreset);
 
                 settings.EndBulkUpdateAndSaveSettings();
                 await MessageService.SendSettingsToFrontend("Clip preset applied");
