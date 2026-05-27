@@ -23,6 +23,31 @@ export default function ClipSettingsSection({
   updateSettings,
 }: ClipSettingsSectionProps) {
   const appState = useAppState();
+  const cpuQualityItems = Array.from({ length: 64 }, (_, value) => {
+    const label =
+      value === 0
+        ? '0 (Lossless / Largest)'
+        : value === 17
+          ? '17 (Highest Quality)'
+          : value === 20
+            ? '20 (High Quality)'
+            : value === 23
+              ? '23 (Normal Quality)'
+              : value === 30
+                ? '30 (Small)'
+                : value === 35
+                  ? '35 (Smaller)'
+                  : value === 40
+                    ? '40 (Tiny)'
+                    : value === 50
+                      ? '50 (Very Tiny)'
+                      : value === 63
+                        ? '63 (Smallest / Lowest Quality)'
+                        : String(value);
+
+    return { value: String(value), label };
+  });
+
   // Helper function to get available presets based on encoder settings
   const getAvailablePresets = (
     encoder: string,
@@ -113,42 +138,50 @@ export default function ClipSettingsSection({
       {/* Quality Preset Selector */}
       <div className="mb-4">
         <div className="grid grid-cols-4 gap-3">
-          <div
-            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
+          <button
+            type="button"
+            aria-pressed={settings.clipQualityPreset === 'low'}
+            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-300 ${
               settings.clipQualityPreset === 'low' ? 'border-primary' : 'border-base-400'
             }`}
             onClick={() => handlePresetChange('low')}
           >
-            <div className="text-sm font-semibold">Low Quality</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">Fast • 30fps</div>
-          </div>
-          <div
-            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
+            <div className="text-sm font-semibold">Small File</div>
+            <div className="text-xs text-base-content text-opacity-70 mt-1">AV1 CRF 50 • 30fps</div>
+          </button>
+          <button
+            type="button"
+            aria-pressed={settings.clipQualityPreset === 'standard'}
+            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-300 ${
               settings.clipQualityPreset === 'standard' ? 'border-primary' : 'border-base-400'
             }`}
             onClick={() => handlePresetChange('standard')}
           >
             <div className="text-sm font-semibold">Standard</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">Balanced • 60fps</div>
-          </div>
-          <div
-            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
+            <div className="text-xs text-base-content text-opacity-70 mt-1">AV1 CRF 40 • 60fps</div>
+          </button>
+          <button
+            type="button"
+            aria-pressed={settings.clipQualityPreset === 'high'}
+            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-300 ${
               settings.clipQualityPreset === 'high' ? 'border-primary' : 'border-base-400'
             }`}
             onClick={() => handlePresetChange('high')}
           >
             <div className="text-sm font-semibold">High Quality</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">Quality • 60fps</div>
-          </div>
-          <div
-            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 ${
+            <div className="text-xs text-base-content text-opacity-70 mt-1">AV1 CRF 30 • 60fps</div>
+          </button>
+          <button
+            type="button"
+            aria-pressed={settings.clipQualityPreset === 'custom'}
+            className={`bg-base-200 p-3 rounded-lg flex flex-col items-center justify-center transition-all transition-200 border cursor-pointer hover:bg-base-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-300 ${
               settings.clipQualityPreset === 'custom' ? 'border-primary' : 'border-base-400'
             }`}
             onClick={() => handlePresetChange('custom')}
           >
             <div className="text-sm font-semibold">Custom</div>
             <div className="text-xs text-base-content text-opacity-70 mt-1">Manual config</div>
-          </div>
+          </button>
         </div>
       </div>
 
@@ -221,35 +254,14 @@ export default function ClipSettingsSection({
                     <span className="label-text text-base-content">Quality (CRF)</span>
                   </label>
                   <DropdownSelect
-                    items={[
-                      { value: '17', label: '17 (Highest Quality)' },
-                      { value: '18', label: '18' },
-                      { value: '19', label: '19' },
-                      { value: '20', label: '20 (High Quality)' },
-                      { value: '21', label: '21' },
-                      { value: '22', label: '22' },
-                      { value: '23', label: '23 (Normal Quality)' },
-                      { value: '24', label: '24' },
-                      { value: '25', label: '25' },
-                      { value: '26', label: '26 (Low Quality)' },
-                      { value: '27', label: '27' },
-                      { value: '28', label: '28' },
-                      { value: '29', label: '29' },
-                      { value: '30', label: '30 (Small)' },
-                      { value: '31', label: '31' },
-                      { value: '32', label: '32' },
-                      { value: '33', label: '33' },
-                      { value: '34', label: '34' },
-                      { value: '35', label: '35 (Smaller)' },
-                      { value: '36', label: '36' },
-                      { value: '37', label: '37' },
-                      { value: '38', label: '38' },
-                      { value: '39', label: '39' },
-                      { value: '40', label: '40 (Smallest)' },
-                    ]}
+                    items={cpuQualityItems}
                     value={String(settings.clipQualityCpu)}
                     onChange={(val) => updateSettings({ clipQualityCpu: Number(val) })}
                   />
+                  <p className="mt-2 text-xs text-base-content/70">
+                    Lower CRF keeps more detail and creates larger files. Higher CRF creates smaller
+                    files with more compression.
+                  </p>
                 </div>
               ) : (
                 <div className="form-control">

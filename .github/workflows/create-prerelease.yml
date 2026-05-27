@@ -1,6 +1,9 @@
 name: Create Prerelease
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       release_type:
@@ -74,6 +77,30 @@ jobs:
             exit 0
           }
 
+          if ("${{ github.event_name }}" -eq "push") {
+            $latestPrerelease = git tag | ForEach-Object {
+              if ($_ -match '^v(\d+)\.(\d+)\.(\d+)-(beta|rc)\.(\d+)$') {
+                [pscustomobject]@{
+                  Tag = $_
+                  Major = [int]$Matches[1]
+                  Minor = [int]$Matches[2]
+                  Patch = [int]$Matches[3]
+                  Type = $Matches[4]
+                  Number = [int]$Matches[5]
+                }
+              }
+            } | Sort-Object Major, Minor, Patch, Number | Select-Object -Last 1
+
+            if ($latestPrerelease) {
+              $nextNumber = $latestPrerelease.Number + 1
+              $newVersion = "$($latestPrerelease.Major).$($latestPrerelease.Minor).$($latestPrerelease.Patch)-$($latestPrerelease.Type).$nextNumber"
+              Write-Host "Auto-incrementing latest prerelease $($latestPrerelease.Tag) to $newVersion"
+              echo "new_version=$newVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
+              echo "new_version=$newVersion" >> $env:GITHUB_OUTPUT
+              exit 0
+            }
+          }
+
           # Get the highest final release version (exclude prereleases, sort by semver)
           $latestFinalTag = (git tag | Where-Object { $_ -notmatch '-(rc|beta)\.' } | Sort-Object { [version]($_ -replace '^v', '') } | Select-Object -Last 1) -replace '^v', ''
           if (-not $latestFinalTag) {
@@ -81,8 +108,8 @@ jobs:
           }
           Write-Host "Latest final release: $latestFinalTag"
 
-          $releaseType = "${{ github.event.inputs.release_type }}"
-          $prereleaseType = "${{ github.event.inputs.prerelease_type }}"
+          $releaseType = "${{ github.event.inputs.release_type || 'patch' }}"
+          $prereleaseType = "${{ github.event.inputs.prerelease_type || 'beta' }}"
 
           # Calculate what the next version would be based on release type
           $versionParts = $latestFinalTag.Split('.')

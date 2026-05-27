@@ -59,7 +59,7 @@ namespace ScreenLoop.Backend.Core.Models
         private bool _clipClearSegmentsAfterCreatingClip = false;
         private bool _clipShowInBrowserAfterUpload = false;
         private string _clipEncoder = "cpu";
-        private int _clipQualityCpu = 23; // CPU CRF: 17 (High) to 40 (Smallest)
+        private int _clipQualityCpu = 23; // CPU CRF: 0 (lossless/highest) to 63 (smallest for SVT-AV1)
         private int _clipQualityGpu = 23; // GPU (CQ/QP/ICQ): 0-1 (High) to 51 (Low)
         private string _clipCodec = "h264";
         private string _clipResolution = "Original";

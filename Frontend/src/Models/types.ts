@@ -262,7 +262,7 @@ export interface Settings {
   replayBufferMaxSize: number; // in MB
   clipClearSegmentsAfterCreatingClip: boolean;
   clipEncoder: ClipEncoder;
-  clipQualityCpu: number; // CPU CRF: 17 (High) to 40 (Smallest)
+  clipQualityCpu: number; // CPU CRF: 0 (lossless/highest) to 63 (smallest for SVT-AV1)
   clipQualityGpu: number; // GPU (CQ/QP/ICQ): 0-1 (High) to 51 (Low)
   clipCodec: ClipCodec;
   clipResolution: ClipResolution;

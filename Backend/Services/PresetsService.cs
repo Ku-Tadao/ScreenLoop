@@ -109,7 +109,7 @@ namespace ScreenLoop.Backend.Services
                     case "low":
                         settings.ClipQualityPreset = "low";
                         settings.ClipEncoder = "cpu";
-                        settings.ClipQualityCpu = settings.ClipCodec == "av1" ? 36 : 28;
+                        settings.ClipQualityCpu = settings.ClipCodec == "av1" ? 50 : 28;
                         settings.ClipCodec = settings.ClipCodec == "av1" ? "av1" : "h264";
                         settings.ClipResolution = "720p";
                         settings.ClipFps = 30;
@@ -121,7 +121,7 @@ namespace ScreenLoop.Backend.Services
                     case "standard":
                         settings.ClipQualityPreset = "standard";
                         settings.ClipEncoder = "cpu";
-                        settings.ClipQualityCpu = settings.ClipCodec == "av1" ? 30 : 23;
+                        settings.ClipQualityCpu = settings.ClipCodec == "av1" ? 40 : 23;
                         settings.ClipCodec = settings.ClipCodec == "av1" ? "av1" : "h264";
                         settings.ClipResolution = "Original";
                         settings.ClipFps = 60;
@@ -133,7 +133,7 @@ namespace ScreenLoop.Backend.Services
                     case "high":
                         settings.ClipQualityPreset = "high";
                         settings.ClipEncoder = "cpu";
-                        settings.ClipQualityCpu = settings.ClipCodec == "av1" ? 24 : 20;
+                        settings.ClipQualityCpu = settings.ClipCodec == "av1" ? 30 : 20;
                         settings.ClipCodec = settings.ClipCodec == "av1" ? "av1" : "h264";
                         settings.ClipResolution = "Original";
                         settings.ClipFps = 60;
