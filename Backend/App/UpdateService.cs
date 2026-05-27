@@ -106,11 +106,25 @@ namespace ScreenLoop.Backend.App
                 return;
             }
 
-            // Shutdown OBS before restarting to unload graphics-hook64.dll from game processes.
-            // ApplyUpdatesAndRestart kills the process immediately, bypassing Program.Shutdown().
-            OBSService.Shutdown();
+            var targetRelease = LatestUpdateInfo.TargetFullRelease;
 
-            UpdateManager.ApplyUpdatesAndRestart(LatestUpdateInfo);
+            try
+            {
+                // Do not let OBS teardown block the updater. The updater exits this process once it
+                // starts, so a short cleanup attempt is enough before handing control to Velopack.
+                var shutdownTask = Task.Run(OBSService.Shutdown);
+                if (!shutdownTask.Wait(TimeSpan.FromSeconds(3)))
+                {
+                    Log.Warning("OBS shutdown did not finish within 3 seconds; applying update anyway.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "OBS shutdown failed before applying update; applying update anyway.");
+            }
+
+            Log.Information($"Restarting into update version {targetRelease.Version}");
+            UpdateManager.ApplyUpdatesAndRestart(targetRelease, Environment.GetCommandLineArgs().Skip(1).ToArray());
         }
 
         // Helper method to send progress updates to the frontend
