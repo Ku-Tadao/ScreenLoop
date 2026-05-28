@@ -149,7 +149,11 @@ namespace ScreenLoop.Backend.Windows.Input
 
         private static bool DoKeysMatch(List<int> keybindKeys, int pressedCount)
         {
-            if (keybindKeys.Count != pressedCount)
+            bool keybindHasModifier = keybindKeys.Any(IsModifierKey);
+            if (!keybindHasModifier && keybindKeys.Count != pressedCount)
+                return false;
+
+            if (keybindHasModifier && keybindKeys.Count > pressedCount)
                 return false;
 
             foreach (var key in keybindKeys)
@@ -167,6 +171,11 @@ namespace ScreenLoop.Backend.Windows.Input
             }
 
             return true;
+        }
+
+        private static bool IsModifierKey(int key)
+        {
+            return key == VK_CONTROL || key == VK_ALT || key == VK_SHIFT;
         }
 
         private static void RegisterHotkeys()
