@@ -45,9 +45,25 @@ const getKeyName = (keyCode: number): string => {
   };
 
   if (keyCode >= 48 && keyCode <= 57) return String.fromCharCode(keyCode); // 0-9
+  if (keyCode >= 96 && keyCode <= 105) return `Num ${keyCode - 96}`;
   if (keyCode >= 65 && keyCode <= 90) return String.fromCharCode(keyCode); // A-Z
 
   return keyMap[keyCode] || `Key(${keyCode})`;
+};
+
+const getVirtualKeyCode = (e: KeyboardEvent): number => {
+  const numpadMatch = /^Numpad([0-9])$/.exec(e.code);
+  if (numpadMatch) return 96 + Number(numpadMatch[1]);
+
+  const numpadOperationKeys: Record<string, number> = {
+    NumpadMultiply: 106,
+    NumpadAdd: 107,
+    NumpadSubtract: 109,
+    NumpadDecimal: 110,
+    NumpadDivide: 111,
+  };
+
+  return numpadOperationKeys[e.code] ?? e.keyCode;
 };
 
 const getActionLabel = (action: KeybindAction): string => {
@@ -74,6 +90,7 @@ export default function KeybindingsSection({ settings, updateSettings }: Keybind
 
     const handleKeyDown = (e: KeyboardEvent) => {
       e.preventDefault();
+      const keyCode = getVirtualKeyCode(e);
 
       const keys: number[] = [];
       if (e.ctrlKey) keys.push(17);
@@ -81,8 +98,8 @@ export default function KeybindingsSection({ settings, updateSettings }: Keybind
       if (e.shiftKey) keys.push(16);
 
       // Add the main key if it's not a modifier
-      if (e.keyCode !== 16 && e.keyCode !== 17 && e.keyCode !== 18) {
-        keys.push(e.keyCode);
+      if (keyCode !== 16 && keyCode !== 17 && keyCode !== 18) {
+        keys.push(keyCode);
       }
 
       setPressedKeys(keys);
@@ -90,16 +107,17 @@ export default function KeybindingsSection({ settings, updateSettings }: Keybind
 
     const handleKeyUp = (e: KeyboardEvent) => {
       e.preventDefault();
+      const keyCode = getVirtualKeyCode(e);
 
       // Cancel on Escape
-      if (e.keyCode === 27) {
+      if (keyCode === 27) {
         setCapturing(null);
         setPressedKeys([]);
         return;
       }
 
       // Save keybind if we have keys and released a non-modifier key
-      if (pressedKeys.length > 0 && e.keyCode !== 16 && e.keyCode !== 17 && e.keyCode !== 18) {
+      if (pressedKeys.length > 0 && keyCode !== 16 && keyCode !== 17 && keyCode !== 18) {
         const updatedKeybindings = [...settings.keybindings];
         updatedKeybindings[capturing] = {
           ...updatedKeybindings[capturing],

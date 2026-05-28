@@ -27,6 +27,27 @@ namespace ScreenLoop.Backend.Windows.Input
         private const int VK_RCONTROL = 0xA3;
         private const int VK_LALT = 0xA4;
         private const int VK_RALT = 0xA5;
+        private const int VK_NUMPAD0 = 0x60;
+        private const int VK_NUMPAD1 = 0x61;
+        private const int VK_NUMPAD2 = 0x62;
+        private const int VK_NUMPAD3 = 0x63;
+        private const int VK_NUMPAD4 = 0x64;
+        private const int VK_NUMPAD5 = 0x65;
+        private const int VK_NUMPAD6 = 0x66;
+        private const int VK_NUMPAD7 = 0x67;
+        private const int VK_NUMPAD8 = 0x68;
+        private const int VK_NUMPAD9 = 0x69;
+        private const int VK_INSERT = 0x2D;
+        private const int VK_DELETE = 0x2E;
+        private const int VK_END = 0x23;
+        private const int VK_DOWN = 0x28;
+        private const int VK_NEXT = 0x22;
+        private const int VK_LEFT = 0x25;
+        private const int VK_CLEAR = 0x0C;
+        private const int VK_RIGHT = 0x27;
+        private const int VK_HOME = 0x24;
+        private const int VK_UP = 0x26;
+        private const int VK_PRIOR = 0x21;
         private const int KEY_PRESSED_MASK = 0x8000;
         private const uint MOD_ALT = 0x0001;
         private const uint MOD_CONTROL = 0x0002;
@@ -81,6 +102,10 @@ namespace ScreenLoop.Backend.Windows.Input
                         if (key != VK_CONTROL && key != VK_ALT && key != VK_SHIFT)
                         {
                             _boundMainKeys.Add(key);
+                            foreach (var alias in GetKeyAliases(key))
+                            {
+                                _boundMainKeys.Add(alias);
+                            }
                         }
                     }
                 }
@@ -161,7 +186,7 @@ namespace ScreenLoop.Backend.Windows.Input
                 bool found = false;
                 for (int i = 0; i < pressedCount; i++)
                 {
-                    if (_pressedKeys[i] == key)
+                    if (KeysEquivalent(_pressedKeys[i], key))
                     {
                         found = true;
                         break;
@@ -199,16 +224,19 @@ namespace ScreenLoop.Backend.Windows.Input
                         continue;
                     }
 
-                    int id = _nextHotkeyId++;
-                    if (RegisterHotKey(window.Handle, id, modifiers | MOD_NOREPEAT, key))
+                    foreach (uint hotkey in GetRegisteredHotkeyAliases((int)key))
                     {
-                        _registeredHotkeys[id] = keybind.Action;
-                        Log.Information("Registered Windows hotkey {Id} for {Action}", id, keybind.Action);
-                    }
-                    else
-                    {
-                        int error = Marshal.GetLastWin32Error();
-                        Log.Warning("Failed to register Windows hotkey for {Action}. Win32 error: {Error}", keybind.Action, error);
+                        int id = _nextHotkeyId++;
+                        if (RegisterHotKey(window.Handle, id, modifiers | MOD_NOREPEAT, hotkey))
+                        {
+                            _registeredHotkeys[id] = keybind.Action;
+                            Log.Information("Registered Windows hotkey {Id} for {Action}", id, keybind.Action);
+                        }
+                        else
+                        {
+                            int error = Marshal.GetLastWin32Error();
+                            Log.Warning("Failed to register Windows hotkey for {Action}. Win32 error: {Error}", keybind.Action, error);
+                        }
                     }
                 }
             }
@@ -345,6 +373,69 @@ namespace ScreenLoop.Backend.Windows.Input
                 VK_LSHIFT or VK_RSHIFT => VK_SHIFT,
                 _ => vk
             };
+        }
+
+        private static IEnumerable<uint> GetRegisteredHotkeyAliases(int vk)
+        {
+            yield return (uint)vk;
+
+            int? navigationAlias = vk switch
+            {
+                VK_NUMPAD0 => VK_INSERT,
+                VK_NUMPAD1 => VK_END,
+                VK_NUMPAD2 => VK_DOWN,
+                VK_NUMPAD3 => VK_NEXT,
+                VK_NUMPAD4 => VK_LEFT,
+                VK_NUMPAD5 => VK_CLEAR,
+                VK_NUMPAD6 => VK_RIGHT,
+                VK_NUMPAD7 => VK_HOME,
+                VK_NUMPAD8 => VK_UP,
+                VK_NUMPAD9 => VK_PRIOR,
+                _ => null
+            };
+
+            if (navigationAlias.HasValue)
+            {
+                yield return (uint)navigationAlias.Value;
+            }
+        }
+
+        private static IEnumerable<int> GetKeyAliases(int vk)
+        {
+            int? alias = vk switch
+            {
+                VK_NUMPAD0 => VK_INSERT,
+                VK_NUMPAD1 => VK_END,
+                VK_NUMPAD2 => VK_DOWN,
+                VK_NUMPAD3 => VK_NEXT,
+                VK_NUMPAD4 => VK_LEFT,
+                VK_NUMPAD5 => VK_CLEAR,
+                VK_NUMPAD6 => VK_RIGHT,
+                VK_NUMPAD7 => VK_HOME,
+                VK_NUMPAD8 => VK_UP,
+                VK_NUMPAD9 => VK_PRIOR,
+                VK_INSERT => VK_NUMPAD0,
+                VK_END => VK_NUMPAD1,
+                VK_DOWN => VK_NUMPAD2,
+                VK_NEXT => VK_NUMPAD3,
+                VK_LEFT => VK_NUMPAD4,
+                VK_CLEAR => VK_NUMPAD5,
+                VK_RIGHT => VK_NUMPAD6,
+                VK_HOME => VK_NUMPAD7,
+                VK_UP => VK_NUMPAD8,
+                VK_PRIOR => VK_NUMPAD9,
+                _ => null
+            };
+
+            if (alias.HasValue)
+            {
+                yield return alias.Value;
+            }
+        }
+
+        private static bool KeysEquivalent(int pressedKey, int boundKey)
+        {
+            return pressedKey == boundKey || GetKeyAliases(boundKey).Contains(pressedKey);
         }
 
         private static void TriggerKeybindAction(KeybindAction action, string source)
