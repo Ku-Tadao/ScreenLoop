@@ -1,4 +1,5 @@
-import { useEffect, useState, createContext } from 'react';
+import { createContext, lazy, Suspense, useEffect, useState } from 'react';
+import { MotionConfig } from 'framer-motion';
 import Settings from './Pages/settings';
 import Menu from './menu';
 import Sessions from './Pages/sessions';
@@ -6,7 +7,6 @@ import Clips from './Pages/clips';
 import ReplayBuffer from './Pages/replay-buffer';
 import { SettingsProvider } from './Context/SettingsContext';
 import { AppStateProvider } from './Context/AppStateContext';
-import Video from './Pages/video';
 import { useSelectedVideo } from './Context/SelectedVideoContext';
 import { useSelectedMenu } from './Context/SelectedMenuContext';
 import { themeChange } from 'theme-change';
@@ -27,6 +27,9 @@ import { ScrollProvider } from './Context/ScrollContext';
 import { ModalProvider } from './Context/ModalContext';
 import { GeneralMessagesProvider } from './Context/GeneralMessagesContext';
 import MigrationOverlay from './Components/MigrationOverlay';
+import AppErrorBoundary from './Components/AppErrorBoundary';
+
+const Video = lazy(() => import('./Pages/video'));
 
 // Create a context for release notes that can be accessed globally
 export const ReleaseNotesContext = createContext<{
@@ -83,9 +86,15 @@ function App() {
   const renderContent = () => {
     if (selectedVideo) {
       return (
-        <DndProvider backend={HTML5Backend}>
+        <Suspense
+          fallback={
+            <div className="flex h-full items-center justify-center" role="status">
+              Loading editor…
+            </div>
+          }
+        >
           <Video video={selectedVideo} />
-        </DndProvider>
+        </Suspense>
       );
     }
 
@@ -118,34 +127,38 @@ export default function AppWrapper() {
 
   return (
     <WebSocketProvider>
-      <MigrationOverlay />
-      <ScrollProvider>
-        <SettingsProvider>
-          <AppStateProvider>
-            <ReleaseNotesContext.Provider value={{ releaseNotes, setReleaseNotes }}>
-              <ModalProvider>
-                <GeneralMessagesProvider>
-                  <SegmentsProvider>
-                    <DndProvider backend={HTML5Backend}>
-                      <ImportProvider>
-                        <ClippingProvider>
-                          <CompressionProvider>
-                            <UpdateProvider>
-                              <ObsDownloadProvider>
-                                <App />
-                              </ObsDownloadProvider>
-                            </UpdateProvider>
-                          </CompressionProvider>
-                        </ClippingProvider>
-                      </ImportProvider>
-                    </DndProvider>
-                  </SegmentsProvider>
-                </GeneralMessagesProvider>
-              </ModalProvider>
-            </ReleaseNotesContext.Provider>
-          </AppStateProvider>
-        </SettingsProvider>
-      </ScrollProvider>
+      <MotionConfig reducedMotion="user">
+        <AppErrorBoundary>
+          <MigrationOverlay />
+          <ScrollProvider>
+            <SettingsProvider>
+              <AppStateProvider>
+                <ReleaseNotesContext.Provider value={{ releaseNotes, setReleaseNotes }}>
+                  <ModalProvider>
+                    <GeneralMessagesProvider>
+                      <SegmentsProvider>
+                        <DndProvider backend={HTML5Backend}>
+                          <ImportProvider>
+                            <ClippingProvider>
+                              <CompressionProvider>
+                                <UpdateProvider>
+                                  <ObsDownloadProvider>
+                                    <App />
+                                  </ObsDownloadProvider>
+                                </UpdateProvider>
+                              </CompressionProvider>
+                            </ClippingProvider>
+                          </ImportProvider>
+                        </DndProvider>
+                      </SegmentsProvider>
+                    </GeneralMessagesProvider>
+                  </ModalProvider>
+                </ReleaseNotesContext.Provider>
+              </AppStateProvider>
+            </SettingsProvider>
+          </ScrollProvider>
+        </AppErrorBoundary>
+      </MotionConfig>
     </WebSocketProvider>
   );
 }

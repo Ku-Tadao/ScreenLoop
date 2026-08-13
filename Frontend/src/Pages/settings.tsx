@@ -10,12 +10,7 @@ import PreferencesSection from '../Components/Settings/PreferencesSection';
 import MenuCustomizationSection from '../Components/Settings/MenuCustomizationSection';
 import AdvancedSection from '../Components/Settings/AdvancedSection';
 
-type SectionId =
-  | 'recording'
-  | 'clips'
-  | 'storage'
-  | 'preferences'
-  | 'advanced';
+type SectionId = 'recording' | 'clips' | 'storage' | 'preferences' | 'advanced';
 
 const NAV_ITEMS: { id: SectionId; label: string }[] = [
   { id: 'recording', label: 'Recording' },
@@ -75,10 +70,10 @@ export default function Settings() {
   return (
     <div className="min-h-full bg-base-200 dark:bg-base-300">
       {/* Sticky Jump Nav */}
-      <div className="sticky top-0 z-50 bg-base-200 dark:bg-base-300 border-b border-base-400 px-5 py-3">
+      <div className="sticky top-0 z-50 border-b border-base-400 bg-base-200 px-5 py-3 dark:bg-base-300">
         <div className="flex items-center gap-6">
           <h1 className="text-2xl font-bold">Settings</h1>
-          <nav className="flex gap-1">
+          <nav className="flex gap-1 overflow-x-auto pb-1" aria-label="Settings sections">
             {NAV_ITEMS.map((item) => (
               <button
                 key={item.id}

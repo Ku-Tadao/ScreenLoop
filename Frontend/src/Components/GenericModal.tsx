@@ -1,4 +1,4 @@
-import { Info, TriangleAlert, CircleAlert } from 'lucide-react';
+import { Info, TriangleAlert, CircleAlert, X } from 'lucide-react';
 import Button from './Button';
 
 export interface ModalProps {
@@ -47,8 +47,14 @@ export default function GenericModal({ title, subtitle, description, type, onClo
           <h2 className={`font-bold text-3xl mb-0 ${titleColor}`}>{title}</h2>
         </div>
         {subtitle && <p className="text-gray-400 text-lg mt-2">{subtitle}</p>}
-        <Button variant="ghost" icon className="absolute right-4 top-4 z-10" onClick={onClose}>
-          ✕
+        <Button
+          variant="ghost"
+          icon
+          className="absolute right-4 top-4 z-10"
+          onClick={onClose}
+          aria-label="Close dialog"
+        >
+          <X aria-hidden="true" size={20} />
         </Button>
       </div>
 

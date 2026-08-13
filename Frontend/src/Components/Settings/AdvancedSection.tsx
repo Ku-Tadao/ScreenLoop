@@ -35,6 +35,7 @@ export default function AdvancedSection({
                 <div className="flex items-center gap-3">
                   <div className="w-40">
                     <DropdownSelect
+                      ariaLabel="Update channel"
                       size="sm"
                       items={[
                         { value: 'stable', label: 'Stable' },
@@ -78,6 +79,7 @@ export default function AdvancedSection({
               </div>
               <div className="w-40">
                 <DropdownSelect
+                  ariaLabel="OBS version"
                   size="sm"
                   items={[
                     { value: '', label: 'Automatic' },

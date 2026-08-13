@@ -5,10 +5,9 @@ import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
 import { useAppState } from '../Context/AppStateContext';
 import { openFileLocation } from '../Utils/FileUtils';
 import { useSelectedVideo } from '../Context/SelectedVideoContext';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useSegments } from '../Context/SegmentsContext';
 import { useClipping } from '../Context/ClippingContext';
+import { useWebSocketContext } from '../Context/WebSocketContext';
 import type { LucideIcon } from 'lucide-react';
 import { Icon } from 'lucide-react';
 import { crosshair2Dot, soccerBall } from '@lucide/lab';
@@ -201,6 +200,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     clearAllSegments,
   } = useSegments();
   const { clippingProgress } = useClipping();
+  const { isConnected } = useWebSocketContext();
 
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -534,13 +534,13 @@ export default function VideoComponent({ video }: { video: Content }) {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      const isTyping =
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        (target as any).isContentEditable;
+      const isInteractiveTarget =
+        target.matches(
+          'input, textarea, select, button, a[href], [contenteditable="true"], [role="button"], [role="menuitem"], [role="menuitemradio"], [role="option"], [role="slider"]',
+        ) || Boolean(target.closest('button, a[href], [role="button"], [role="menuitem"]'));
 
       // Space to toggle play/pause globally (unless typing)
-      if ((e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar') && !isTyping) {
+      if ((e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar') && !isInteractiveTarget) {
         if (e.repeat) return; // avoid rapid toggle on key repeat
         e.preventDefault();
         handlePlayPause();
@@ -548,7 +548,7 @@ export default function VideoComponent({ video }: { video: Content }) {
       }
 
       // F to toggle fullscreen overlay (unless typing)
-      if ((e.key === 'f' || e.key === 'F') && !isTyping) {
+      if ((e.key === 'f' || e.key === 'F') && !isInteractiveTarget) {
         if (e.repeat) return;
         e.preventDefault();
         toggleFullscreen();
@@ -556,13 +556,13 @@ export default function VideoComponent({ video }: { video: Content }) {
       }
 
       // Arrow keys: seek 5s back/forward (allow holding)
-      if ((e.key === 'ArrowLeft' || e.code === 'ArrowLeft') && !isTyping) {
+      if ((e.key === 'ArrowLeft' || e.code === 'ArrowLeft') && !isInteractiveTarget) {
         e.preventDefault();
         showControlsTemporarily();
         skipTime(-5);
         return;
       }
-      if ((e.key === 'ArrowRight' || e.code === 'ArrowRight') && !isTyping) {
+      if ((e.key === 'ArrowRight' || e.code === 'ArrowRight') && !isInteractiveTarget) {
         e.preventDefault();
         showControlsTemporarily();
         skipTime(5);
@@ -570,13 +570,13 @@ export default function VideoComponent({ video }: { video: Content }) {
       }
 
       // Volume up/down (5% steps, allow holding)
-      if ((e.key === 'ArrowUp' || e.code === 'ArrowUp') && !isTyping) {
+      if ((e.key === 'ArrowUp' || e.code === 'ArrowUp') && !isInteractiveTarget) {
         e.preventDefault();
         setPlayerVolume((videoRef.current?.volume ?? volume) + 0.05);
         showControlsTemporarily();
         return;
       }
-      if ((e.key === 'ArrowDown' || e.code === 'ArrowDown') && !isTyping) {
+      if ((e.key === 'ArrowDown' || e.code === 'ArrowDown') && !isInteractiveTarget) {
         e.preventDefault();
         setPlayerVolume((videoRef.current?.volume ?? volume) - 0.05);
         showControlsTemporarily();
@@ -584,7 +584,7 @@ export default function VideoComponent({ video }: { video: Content }) {
       }
 
       // Mute/unmute
-      if ((e.key === 'm' || e.key === 'M') && !isTyping) {
+      if ((e.key === 'm' || e.key === 'M') && !isInteractiveTarget) {
         e.preventDefault();
         toggleMute();
         showControlsTemporarily();
@@ -706,18 +706,10 @@ export default function VideoComponent({ video }: { video: Content }) {
       }
     };
 
-    const preventPageZoom = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-      }
-    };
-
     window.addEventListener('resize', handleResize);
-    window.addEventListener('wheel', preventPageZoom, { passive: false });
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      window.removeEventListener('wheel', preventPageZoom);
     };
   }, []);
 
@@ -1141,6 +1133,7 @@ export default function VideoComponent({ video }: { video: Content }) {
 
   // Create a clip from current segments
   const handleCreateClip = () => {
+    if (!isConnected) return;
     if (isClipCreatePending || Object.keys(clippingProgress).length > 0) {
       return;
     }
@@ -1455,6 +1448,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   const [fileCopied, setFileCopied] = useState(false);
 
   const handleCopyFile = () => {
+    if (!isConnected) return;
     sendMessageToBackend('CopyFileToClipboard', { FilePath: video.filePath });
     setFileCopied(true);
     setTimeout(() => setFileCopied(false), 1500);
@@ -1492,7 +1486,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   };
 
   const handleAddBookmark = () => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || !isConnected) return;
 
     const currentTimeInSeconds = videoRef.current.currentTime;
     // Format time as HH:MM:SS.mmm for consistency with backend
@@ -1534,6 +1528,7 @@ export default function VideoComponent({ video }: { video: Content }) {
   };
 
   const handleDeleteBookmark = (bookmarkId: number) => {
+    if (!isConnected) return;
     // Find the bookmark in the video's bookmarks array
     const bookmarkIndex = video.bookmarks.findIndex((b) => b.id === bookmarkId);
 
@@ -1587,648 +1582,595 @@ export default function VideoComponent({ video }: { video: Content }) {
   };
 
   return (
-    <DndProvider backend={HTML5Backend}>
-      <div className="flex w-full h-full overflow-hidden bg-base-200" ref={containerRef}>
-        <div className="flex flex-col flex-1 w-full h-full p-4 pb-2 overflow-hidden lg:w-3/4">
-          <TopInfoBar video={video} />
-          <div
-            className={`${isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen overflow-hidden bg-black' : 'relative flex-1 min-h-0 overflow-hidden rounded-lg'}`}
-            ref={playerContainerRef}
-            onMouseMove={() => {
-              showControlsTemporarily();
-            }}
-            onMouseLeave={() => {
-              isPointerOverControlsRef.current = false;
-              showCursor();
-              if (controlsShowTimeoutRef.current) {
-                clearTimeout(controlsShowTimeoutRef.current);
-                controlsShowTimeoutRef.current = null;
-              }
-              if (controlsHideTimeoutRef.current) {
-                clearTimeout(controlsHideTimeoutRef.current);
-                controlsHideTimeoutRef.current = null;
-              }
-              controlsHideTimeoutRef.current = window.setTimeout(() => {
-                setControlsVisible(false);
-                controlsHideTimeoutRef.current = null;
-              }, 600);
-            }}
-          >
-            <div className={videoWrapperClassName}>
-              <video
-                autoPlay
-                className="w-full h-full object-contain"
-                src={getVideoPath()}
-                ref={videoRef}
-                onClick={onVideoClick}
-                onDoubleClick={toggleFullscreen}
-                onPointerDown={onVideoPointerDown}
-                onPointerMove={onVideoPointerMove}
-                onPointerUp={onVideoPointerUp}
-                onWheel={onVideoWheel}
-                style={{
-                  backgroundColor: 'black',
-                  objectFit: 'contain' as const,
-                  transform: `translate(${videoTranslate.x}px, ${videoTranslate.y}px) scale(${videoScale})`,
-                  transformOrigin: '0 0',
-                  touchAction: videoScale > 1 ? 'none' : undefined,
-                  cursor: videoScale > 1 && isPanning ? 'grabbing' : undefined,
-                }}
-              />
-            </div>
-
-            <div
-              className={`absolute left-0 right-0 bottom-0 bg-black/70 pb-2 flex flex-col gap-2 transition-transform duration-300 select-none ${isFullscreen ? '' : 'rounded-b-lg'} ${controlsVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}`}
-              onMouseEnter={handleControlsMouseEnter}
-              onMouseLeave={handleControlsMouseLeave}
-            >
-              <input
-                type="range"
-                min={0}
-                max={Math.max(0.01, duration)}
-                step={0.01}
-                value={Math.min(currentTime, duration)}
-                onChange={(e) => {
-                  const t = parseFloat(e.target.value);
-                  setCurrentTime(t);
-                  if (videoRef.current) videoRef.current.currentTime = t;
-                }}
-                onPointerUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                onMouseUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                onTouchEnd={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                className="w-full h-5 -my-2 bg-center bg-no-repeat bg-[length:100%_4px] hover:bg-[length:100%_7px] transition-[background-size] duration-300 appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0 [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:h-0 [&::-moz-range-thumb]:border-0"
-                style={{
-                  backgroundImage: `linear-gradient(to right, var(--color-accent) ${(Math.min(currentTime, duration) / Math.max(0.01, duration)) * 100}%, #4b5563 ${(Math.min(currentTime, duration) / Math.max(0.01, duration)) * 100}%)`,
-                }}
-              />
-
-              <div className="flex items-center justify-between px-3">
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={togglePlayPause}
-                    className="text-white transition-colors cursor-pointer hover:text-accent"
-                    aria-label={isPlaying ? 'Pause' : 'Play'}
-                  >
-                    {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-                  </button>
-
-                  <div className="flex items-center group">
-                    <button
-                      onClick={toggleMute}
-                      className="text-white transition-colors cursor-pointer hover:text-accent"
-                      aria-label={isMuted ? 'Unmute' : 'Mute'}
-                    >
-                      {isMuted || volume === 0 ? (
-                        <VolumeX className="w-5 h-5" />
-                      ) : volume < 0.2 ? (
-                        <VolumeX className="w-5 h-5" />
-                      ) : volume < 0.7 ? (
-                        <Volume1 className="w-5 h-5" />
-                      ) : (
-                        <Volume2 className="w-5 h-5" />
-                      )}
-                    </button>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.02"
-                      value={volume}
-                      onChange={handleVolumeChange}
-                      onPointerUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                      onMouseUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                      onTouchEnd={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                      className="w-0 ml-0 opacity-0 group-hover:w-20 group-hover:ml-2 group-hover:opacity-100 group-focus-within:w-20 group-focus-within:ml-2 group-focus-within:opacity-100 h-1 rounded-lg appearance-none cursor-pointer transition-all duration-200 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-moz-range-thumb]:w-2 [&::-moz-range-thumb]:h-2 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-0"
-                      style={{
-                        backgroundImage: `linear-gradient(to right, var(--color-accent) ${(isMuted ? 0 : volume) * 100}%, #4b5563 ${(isMuted ? 0 : volume) * 100}%)`,
-                      }}
-                    />
-                  </div>
-
-                  <span className="text-xs tabular-nums text-white/90">
-                    {formatTime(currentTime)} / {formatTime(duration)}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {audioTracks.isMultiTrack && (
-                    <div className="relative">
-                      <button
-                        onClick={() => setShowAudioTracks(!showAudioTracks)}
-                        className={`flex items-center justify-center p-1 text-white cursor-pointer transition-colors border rounded-md border-base-400 hover:text-accent hover:bg-accent/20 ${showAudioTracks ? 'text-accent bg-accent/20' : ''}`}
-                      >
-                        <Headphones className="w-4 h-4" />
-                      </button>
-                      <div
-                        className={`absolute bottom-full right-0 mb-2 p-2 bg-black/90 rounded-lg border border-base-400 min-w-48 z-50 transition-all duration-300 origin-bottom-right ${showAudioTracks ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`}
-                      >
-                        {audioTracks.tracks.map((track) => {
-                          const isMuted = audioTracks.mutedTracks.has(track.index);
-                          const vol = audioTracks.volumes[track.index] ?? 1;
-                          return (
-                            <div
-                              key={track.index}
-                              className="flex items-center justify-between gap-2 py-0.5"
-                            >
-                              <label className="flex items-center gap-2 min-w-0 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={!isMuted}
-                                  onChange={() => audioTracks.toggleTrackMute(track.index)}
-                                  className="checkbox checkbox-primary checkbox-xs shrink-0"
-                                />
-                                <span className="text-xs text-white/80 truncate select-none">
-                                  {track.name.replace(' (Default)', '')}
-                                </span>
-                              </label>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <input
-                                  type="range"
-                                  min="0"
-                                  max="1"
-                                  step="0.02"
-                                  value={vol}
-                                  onChange={(e) =>
-                                    audioTracks.setTrackVolume(
-                                      track.index,
-                                      parseFloat(e.target.value),
-                                    )
-                                  }
-                                  className={`w-16 h-1 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-moz-range-thumb]:border-0 ${
-                                    isMuted
-                                      ? '[&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0 [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:h-0'
-                                      : '[&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--color-accent)] [&::-moz-range-thumb]:w-2 [&::-moz-range-thumb]:h-2 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--color-accent)]'
-                                  }`}
-                                  style={{
-                                    backgroundImage: `linear-gradient(to right, var(--color-accent) ${(isMuted ? 0 : vol) * 100}%, #4b5563 ${(isMuted ? 0 : vol) * 100}%)`,
-                                  }}
-                                />
-                                <span className="text-[10px] text-white/50 w-7 text-right tabular-nums">
-                                  {Math.round(vol * 100)}%
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  <button
-                    onClick={() => {
-                      const current = videoScaleRef.current || 1;
-                      applyVideoScale(current - 0.5);
-                    }}
-                    disabled={videoScale <= 1}
-                    className="flex items-center justify-center p-1 text-white cursor-pointer transition-colors border rounded-md border-base-400 hover:text-accent hover:bg-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-label="Zoom out"
-                  >
-                    <ZoomOut className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      const current = videoScaleRef.current || 1;
-                      applyVideoScale(current + 0.5);
-                    }}
-                    disabled={videoScale >= 4}
-                    className="flex items-center justify-center p-1 text-white cursor-pointer transition-colors border rounded-md border-base-400 hover:text-accent hover:bg-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-label="Zoom in"
-                  >
-                    <ZoomIn className="w-4 h-4" />
-                  </button>
-                  <div className="relative" ref={speedDropdownRef}>
-                    <button
-                      ref={speedButtonRef}
-                      type="button"
-                      className="flex items-center justify-center gap-1 px-2 py-1 text-xs font-medium text-white cursor-pointer transition-colors border rounded-md border-base-400 hover:text-accent hover:bg-accent/20"
-                      aria-label="Change playback speed"
-                      aria-haspopup="menu"
-                      aria-expanded={showSpeedMenu}
-                      onClick={() => {
-                        if (showSpeedMenu) {
-                          setShowSpeedMenu(false);
-                          speedButtonRef.current?.blur();
-                        } else {
-                          setShowSpeedMenu(true);
-                        }
-                      }}
-                    >
-                      <span>{formatPlaybackRateLabel(playbackRate)}</span>
-                    </button>
-                    <div
-                      className={`absolute right-0 bottom-full z-50 mb-2 border rounded-md shadow-lg bg-black/90 border-base-400 transition-all duration-300 ${showSpeedMenu ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`}
-                    >
-                      <div className="flex flex-col">
-                        {PLAYBACK_SPEEDS.map((speed) => {
-                          const isActive = speed === playbackRate;
-                          return (
-                            <button
-                              key={speed}
-                              role="menuitemradio"
-                              aria-checked={isActive}
-                              onClick={() => {
-                                setPlaybackRateForPlayer(speed);
-                                setShowSpeedMenu(false);
-                                speedButtonRef.current?.blur();
-                              }}
-                              className={`flex w-full items-center justify-center px-3 py-1 cursor-pointer text-sm transition-colors ${isActive ? 'text-white bg-accent/20' : 'text-white/80 hover:text-white hover:bg-accent/10'}`}
-                            >
-                              <span>{formatPlaybackRateLabel(speed)}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={toggleFullscreen}
-                    onPointerUp={(e) => e.currentTarget.blur()}
-                    onMouseUp={(e) => e.currentTarget.blur()}
-                    onTouchEnd={(e) => e.currentTarget.blur()}
-                    className="text-white cursor-pointer transition-colors hover:text-accent"
-                    aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-                  >
-                    {isFullscreen ? (
-                      <Minimize className="w-5 h-5" />
-                    ) : (
-                      <Maximize className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div
-            className="relative w-full mt-2 overflow-x-scroll overflow-y-hidden select-none shrink-0 timeline-wrapper"
-            ref={scrollContainerRef}
-            onMouseMove={(e) => {
-              handleSegmentDrag(e);
-              handleSegmentResize(e);
-              handleMarkerDrag(e);
-            }}
-          >
-            <div
-              className="ticks-container relative h-[42px]"
+    <div className="flex w-full h-full overflow-hidden bg-base-200" ref={containerRef}>
+      <div className="flex flex-col flex-1 w-full h-full p-4 pb-2 overflow-hidden lg:w-3/4">
+        <TopInfoBar video={video} />
+        <div
+          className={`${isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen overflow-hidden bg-black' : 'relative flex-1 min-h-0 overflow-hidden rounded-lg'}`}
+          ref={playerContainerRef}
+          onMouseMove={() => {
+            showControlsTemporarily();
+          }}
+          onMouseLeave={() => {
+            isPointerOverControlsRef.current = false;
+            showCursor();
+            if (controlsShowTimeoutRef.current) {
+              clearTimeout(controlsShowTimeoutRef.current);
+              controlsShowTimeoutRef.current = null;
+            }
+            if (controlsHideTimeoutRef.current) {
+              clearTimeout(controlsHideTimeoutRef.current);
+              controlsHideTimeoutRef.current = null;
+            }
+            controlsHideTimeoutRef.current = window.setTimeout(() => {
+              setControlsVisible(false);
+              controlsHideTimeoutRef.current = null;
+            }, 600);
+          }}
+        >
+          <div className={videoWrapperClassName}>
+            <video
+              autoPlay
+              className="w-full h-full object-contain"
+              src={getVideoPath()}
+              ref={videoRef}
+              onClick={onVideoClick}
+              onDoubleClick={toggleFullscreen}
+              onPointerDown={onVideoPointerDown}
+              onPointerMove={onVideoPointerMove}
+              onPointerUp={onVideoPointerUp}
+              onWheel={onVideoWheel}
               style={{
-                width: `${duration * pixelsPerSecond}px`,
-                minWidth: '100%',
-                overflow: 'hidden',
+                backgroundColor: 'black',
+                objectFit: 'contain' as const,
+                transform: `translate(${videoTranslate.x}px, ${videoTranslate.y}px) scale(${videoScale})`,
+                transformOrigin: '0 0',
+                touchAction: videoScale > 1 ? 'none' : undefined,
+                cursor: videoScale > 1 && isPanning ? 'grabbing' : undefined,
               }}
-            >
-              <AnimatePresence initial={false}>
-                {bookmarksReady &&
-                  filteredBookmarks.map((bookmark, index) => {
-                    const timeInSeconds = timeStringToSeconds(bookmark.time);
-                    const leftPos = timeInSeconds * pixelsPerSecond;
-                    const Icon =
-                      getIconMapping(video.igdbId)[bookmark.type as BookmarkType] || Skull;
-
-                    return (
-                      <motion.div
-                        key={`bookmark-${bookmark.id ?? index}`}
-                        initial={{ opacity: 0, scale: 0.5 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.5 }}
-                        transition={{ duration: 0.1 }}
-                        className="tooltip absolute bottom-0 transform -translate-x-1/2 cursor-pointer z-10 flex flex-col items-center text-[#25272e]"
-                        data-tip={`${bookmark.type}${bookmark.subtype ? ` - ${bookmark.subtype}` : ''} (${bookmark.time})`}
-                        style={{ left: `${leftPos}px` }}
-                        onClick={() => {
-                          const seekTo = Math.max(
-                            0,
-                            timeInSeconds - (bookmark.type == BookmarkType.Manual ? 10 : 5),
-                          );
-                          setCurrentTime(seekTo);
-                          if (videoRef.current) {
-                            videoRef.current.currentTime = seekTo;
-                          }
-                        }}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          handleDeleteBookmark(bookmark.id);
-                        }}
-                      >
-                        <div className="bg-[#EFAF2B] w-[26px] h-[26px] rounded-full flex items-center justify-center mb-0">
-                          <Icon size={18} strokeWidth={2.5} />
-                        </div>
-                        <div className="w-[2px] h-[16px] bg-[#EFAF2B]" />
-                      </motion.div>
-                    );
-                  })}
-              </AnimatePresence>
-              {minorTicks.map((tickTime) => {
-                if (tickTime >= duration) return null;
-                const leftPos = tickTime * pixelsPerSecond;
-                return (
-                  <div
-                    key={`minor-${tickTime}`}
-                    className="absolute bottom-0 h-[6px] border-l border-white/20"
-                    style={{
-                      left: `${leftPos}px`,
-                    }}
-                  />
-                );
-              })}
-              {majorTicks.map((tickTime) => {
-                if (tickTime > duration) return null;
-                const leftPos = tickTime * pixelsPerSecond;
-                return (
-                  <div
-                    key={`major-${tickTime}`}
-                    className="absolute bottom-0 text-center text-white -translate-x-1/2 select-none whitespace-nowrap"
-                    style={{
-                      left: `${leftPos}px`,
-                    }}
-                  >
-                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 text-xs mb-[3px]">
-                      {formatTime(tickTime)}
-                    </span>
-                    <div className="w-[2px] h-[10px] bg-white mx-auto" />
-                  </div>
-                );
-              })}
-            </div>
-            <div
-              className="timeline-container bg-base-300 border border-base-400 rounded-lg relative h-[50px] w-full overflow-hidden"
-              style={{
-                width: `${duration * pixelsPerSecond}px`,
-                minWidth: '100%',
-              }}
-              onClick={handleTimelineClick}
-            >
-              {settings.showAudioWaveformInTimeline && (
-                <canvas
-                  ref={waveformCanvasRef}
-                  height={49}
-                  className="absolute top-0 pointer-events-none"
-                  style={{
-                    height: '49px',
-                    opacity: 0.6,
-                  }}
-                />
-              )}
-              {sortedSegments.map((seg) => {
-                const left = seg.startTime * pixelsPerSecond;
-                const width = (seg.endTime - seg.startTime) * pixelsPerSecond;
-                const hidden = seg.fileName !== video.fileName;
-                return (
-                  <>
-                    <div
-                      key={seg.id}
-                      className={`absolute top-0 left-0 h-full cursor-move ${hidden ? 'hidden' : ''} transition-colors overflow-hidden rounded-r-sm rounded-l-sm shadow-md
-                                                bg-primary/20 border border-primary/20`}
-                      style={{ left: `${left}px`, width: `${width}px` }}
-                      onMouseEnter={() => {
-                        setHoveredSegmentId(seg.id);
-                      }}
-                      onMouseLeave={() => {
-                        setHoveredSegmentId(null);
-                      }}
-                      onMouseDown={(e) => handleSegmentMouseDown(e, seg.id)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        removeSegment(seg.id);
-                      }}
-                    >
-                      <div className="absolute left-0 top-0 h-full w-[4px] bg-accent/80 rounded-l-sm pointer-events-none" />
-                      <div className="absolute right-0 top-0 h-full w-[4px] bg-accent/80 rounded-r-sm pointer-events-none" />
-
-                      {audioTracks.isMultiTrack &&
-                        video.audioTrackNames &&
-                        video.audioTrackNames.length > 1 && (
-                          <button
-                            className={`absolute top-[4px] right-[8px] flex items-center justify-center w-4 h-4 rounded z-10 pointer-events-auto cursor-pointer transition-opacity bg-black/45 text-white/70 hover:bg-black/65 ${hoveredSegmentId === seg.id || (timelineAudioMenu?.segId === seg.id && timelineAudioMenu.visible) ? 'opacity-100' : 'opacity-0'}`}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (
-                                timelineAudioMenu?.segId === seg.id &&
-                                timelineAudioMenu.visible
-                              ) {
-                                setTimelineAudioMenu((prev) =>
-                                  prev ? { ...prev, visible: false } : null,
-                                );
-                                return;
-                              }
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              const trackCount = video.audioTrackNames?.length ?? 0;
-                              const estimatedHeight = 16 + trackCount * 24;
-                              const fitsBelow =
-                                rect.bottom + 4 + estimatedHeight <= window.innerHeight;
-                              const top = fitsBelow
-                                ? rect.bottom + 4
-                                : Math.max(8, rect.top - 4 - estimatedHeight);
-                              const next = {
-                                segId: seg.id,
-                                x: rect.left,
-                                y: top,
-                                flipUp: !fitsBelow,
-                                visible: false,
-                              };
-                              setTimelineAudioMenu(next);
-                              requestAnimationFrame(() =>
-                                setTimelineAudioMenu((prev) =>
-                                  prev ? { ...prev, visible: true } : null,
-                                ),
-                              );
-                            }}
-                          >
-                            <Headphones className="w-2.5 h-2.5" />
-                          </button>
-                        )}
-
-                      <div
-                        className="absolute top-0 -left-[8px] w-[18px] h-full bg-transparent cursor-col-resize pointer-events-auto"
-                        onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'start')}
-                        aria-label="Resize segment start"
-                      />
-                      <div
-                        className="absolute top-0 -right-[8px] w-[18px] h-full bg-transparent cursor-col-resize pointer-events-auto"
-                        onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'end')}
-                        aria-label="Resize segment end"
-                      />
-                    </div>
-                  </>
-                );
-              })}
-              {resizingSegmentId == null && (
-                <div
-                  className="absolute top-0 left-0 z-10 w-1 h-full -translate-x-1/2 rounded-sm shadow cursor-pointer marker bg-accent"
-                  style={{ left: `${currentTime * pixelsPerSecond}px` }}
-                  onMouseDown={handleMarkerDragStart}
-                />
-              )}
-            </div>
+            />
           </div>
-          {timelineAudioMenu &&
-            (() => {
-              const menuSeg = segments.find((s) => s.id === timelineAudioMenu.segId);
-              if (!menuSeg || !video.audioTrackNames) return null;
-              const mutedTracks = menuSeg.mutedAudioTracks ?? [];
-              const trackVolumes = menuSeg.audioTrackVolumes ?? {};
-              return (
-                <div
-                  className={`fixed p-2 bg-black/90 rounded-lg border border-base-400 min-w-48 z-[200] cursor-default transition-all duration-300 ${
-                    timelineAudioMenu.visible
-                      ? 'opacity-100 translate-y-0 pointer-events-auto'
-                      : timelineAudioMenu.flipUp
-                        ? 'opacity-0 translate-y-2 pointer-events-none'
-                        : 'opacity-0 -translate-y-2 pointer-events-none'
-                  }`}
-                  style={{ left: timelineAudioMenu.x, top: timelineAudioMenu.y }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {video.audioTrackNames.map((name, i) => {
-                    const isMuted = mutedTracks.includes(i);
-                    const vol = trackVolumes[i] ?? 1;
-                    return (
-                      <div key={i} className="flex items-center justify-between gap-2 py-0.5">
-                        <label className="flex items-center gap-2 min-w-0 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={!isMuted}
-                            onChange={() => {
-                              let newMuted: number[];
-                              if (isMuted) {
-                                // Enabling this track
-                                if (i === 0) {
-                                  // Enabling Full Mix: mute all individual tracks
-                                  newMuted = (video.audioTrackNames ?? [])
-                                    .map((_, idx) => idx)
-                                    .filter((idx) => idx !== 0);
-                                } else {
-                                  // Enabling an individual track: mute Full Mix
-                                  newMuted = mutedTracks.filter((t) => t !== i);
-                                  if (!newMuted.includes(0)) newMuted.push(0);
-                                }
-                              } else {
-                                // Muting this track
-                                newMuted = [...mutedTracks, i];
-                              }
-                              updateSegment({ ...menuSeg, mutedAudioTracks: newMuted });
-                            }}
-                            className="checkbox checkbox-primary checkbox-xs shrink-0"
-                          />
-                          <span className="text-xs text-white/80 truncate">
-                            {name.replace(' (Default)', '')}
-                          </span>
-                        </label>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.02"
-                            value={vol}
-                            onChange={(e) => {
-                              const newVolumes = {
-                                ...trackVolumes,
-                                [i]: parseFloat(e.target.value),
-                              };
-                              updateSegment({ ...menuSeg, audioTrackVolumes: newVolumes });
-                            }}
-                            className={`w-16 h-1 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-moz-range-thumb]:border-0 ${
-                              isMuted
-                                ? '[&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0 [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:h-0'
-                                : '[&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--color-accent)] [&::-moz-range-thumb]:w-2 [&::-moz-range-thumb]:h-2 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--color-accent)]'
-                            }`}
-                            style={{
-                              backgroundImage: `linear-gradient(to right, var(--color-accent) ${(isMuted ? 0 : vol) * 100}%, #4b5563 ${(isMuted ? 0 : vol) * 100}%)`,
-                            }}
-                          />
-                          <span className="text-[10px] text-white/50 w-7 text-right tabular-nums">
-                            {Math.round(vol * 100)}%
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-          <div className="flex items-center justify-between gap-4 py-1 shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center border rounded-lg join bg-base-300 border-base-400">
+
+          <div
+            className={`absolute left-0 right-0 bottom-0 bg-black/70 pb-2 flex flex-col gap-2 transition-transform duration-300 select-none ${isFullscreen ? '' : 'rounded-b-lg'} ${controlsVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}`}
+            onMouseEnter={handleControlsMouseEnter}
+            onMouseLeave={handleControlsMouseLeave}
+          >
+            <input
+              type="range"
+              min={0}
+              max={Math.max(0.01, duration)}
+              step={0.01}
+              value={Math.min(currentTime, duration)}
+              onChange={(e) => {
+                const t = parseFloat(e.target.value);
+                setCurrentTime(t);
+                if (videoRef.current) videoRef.current.currentTime = t;
+              }}
+              onPointerUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
+              onMouseUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
+              onTouchEnd={(e) => (e.currentTarget as HTMLInputElement).blur()}
+              className="w-full h-5 -my-2 bg-center bg-no-repeat bg-[length:100%_4px] hover:bg-[length:100%_7px] transition-[background-size] duration-300 appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0 [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:h-0 [&::-moz-range-thumb]:border-0"
+              style={{
+                backgroundImage: `linear-gradient(to right, var(--color-accent) ${(Math.min(currentTime, duration) / Math.max(0.01, duration)) * 100}%, #4b5563 ${(Math.min(currentTime, duration) / Math.max(0.01, duration)) * 100}%)`,
+              }}
+            />
+
+            <div className="flex items-center justify-between px-3">
+              <div className="flex items-center gap-3">
                 <button
-                  onClick={() => skipTime(-5)}
-                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
-                >
-                  <RotateCcw className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={handlePlayPause}
-                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
-                  data-tip={isPlaying ? 'Pause' : 'Play'}
+                  onClick={togglePlayPause}
+                  className="text-white transition-colors cursor-pointer hover:text-accent"
+                  aria-label={isPlaying ? 'Pause' : 'Play'}
                 >
                   {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
                 </button>
+
+                <div className="flex items-center group">
+                  <button
+                    onClick={toggleMute}
+                    className="text-white transition-colors cursor-pointer hover:text-accent"
+                    aria-label={isMuted ? 'Unmute' : 'Mute'}
+                  >
+                    {isMuted || volume === 0 ? (
+                      <VolumeX className="w-5 h-5" />
+                    ) : volume < 0.2 ? (
+                      <VolumeX className="w-5 h-5" />
+                    ) : volume < 0.7 ? (
+                      <Volume1 className="w-5 h-5" />
+                    ) : (
+                      <Volume2 className="w-5 h-5" />
+                    )}
+                  </button>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.02"
+                    value={volume}
+                    onChange={handleVolumeChange}
+                    onPointerUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                    onMouseUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                    onTouchEnd={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                    className="w-0 ml-0 opacity-0 group-hover:w-20 group-hover:ml-2 group-hover:opacity-100 group-focus-within:w-20 group-focus-within:ml-2 group-focus-within:opacity-100 h-1 rounded-lg appearance-none cursor-pointer transition-all duration-200 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-moz-range-thumb]:w-2 [&::-moz-range-thumb]:h-2 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-0"
+                    style={{
+                      backgroundImage: `linear-gradient(to right, var(--color-accent) ${(isMuted ? 0 : volume) * 100}%, #4b5563 ${(isMuted ? 0 : volume) * 100}%)`,
+                    }}
+                  />
+                </div>
+
+                <span className="text-xs tabular-nums text-white/90">
+                  {formatTime(currentTime)} / {formatTime(duration)}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {audioTracks.isMultiTrack && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowAudioTracks(!showAudioTracks)}
+                      className={`flex items-center justify-center p-1 text-white cursor-pointer transition-colors border rounded-md border-base-400 hover:text-accent hover:bg-accent/20 ${showAudioTracks ? 'text-accent bg-accent/20' : ''}`}
+                    >
+                      <Headphones className="w-4 h-4" />
+                    </button>
+                    <div
+                      className={`absolute bottom-full right-0 mb-2 p-2 bg-black/90 rounded-lg border border-base-400 min-w-48 z-50 transition-all duration-300 origin-bottom-right ${showAudioTracks ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`}
+                    >
+                      {audioTracks.tracks.map((track) => {
+                        const isMuted = audioTracks.mutedTracks.has(track.index);
+                        const vol = audioTracks.volumes[track.index] ?? 1;
+                        return (
+                          <div
+                            key={track.index}
+                            className="flex items-center justify-between gap-2 py-0.5"
+                          >
+                            <label className="flex items-center gap-2 min-w-0 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={!isMuted}
+                                onChange={() => audioTracks.toggleTrackMute(track.index)}
+                                className="checkbox checkbox-primary checkbox-xs shrink-0"
+                              />
+                              <span className="text-xs text-white/80 truncate select-none">
+                                {track.name.replace(' (Default)', '')}
+                              </span>
+                            </label>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.02"
+                                value={vol}
+                                onChange={(e) =>
+                                  audioTracks.setTrackVolume(
+                                    track.index,
+                                    parseFloat(e.target.value),
+                                  )
+                                }
+                                className={`w-16 h-1 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-moz-range-thumb]:border-0 ${
+                                  isMuted
+                                    ? '[&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0 [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:h-0'
+                                    : '[&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--color-accent)] [&::-moz-range-thumb]:w-2 [&::-moz-range-thumb]:h-2 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--color-accent)]'
+                                }`}
+                                style={{
+                                  backgroundImage: `linear-gradient(to right, var(--color-accent) ${(isMuted ? 0 : vol) * 100}%, #4b5563 ${(isMuted ? 0 : vol) * 100}%)`,
+                                }}
+                              />
+                              <span className="text-[10px] text-white/50 w-7 text-right tabular-nums">
+                                {Math.round(vol * 100)}%
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <button
-                  onClick={() => skipTime(5)}
-                  className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
-                  data-tip="Forward 5s"
+                  onClick={() => {
+                    const current = videoScaleRef.current || 1;
+                    applyVideoScale(current - 0.5);
+                  }}
+                  disabled={videoScale <= 1}
+                  className="flex items-center justify-center p-1 text-white cursor-pointer transition-colors border rounded-md border-base-400 hover:text-accent hover:bg-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Zoom out"
                 >
-                  <RotateCw className="w-5 h-5" />
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    const current = videoScaleRef.current || 1;
+                    applyVideoScale(current + 0.5);
+                  }}
+                  disabled={videoScale >= 4}
+                  className="flex items-center justify-center p-1 text-white cursor-pointer transition-colors border rounded-md border-base-400 hover:text-accent hover:bg-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Zoom in"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <div className="relative" ref={speedDropdownRef}>
+                  <button
+                    ref={speedButtonRef}
+                    type="button"
+                    className="flex items-center justify-center gap-1 px-2 py-1 text-xs font-medium text-white cursor-pointer transition-colors border rounded-md border-base-400 hover:text-accent hover:bg-accent/20"
+                    aria-label="Change playback speed"
+                    aria-haspopup="menu"
+                    aria-expanded={showSpeedMenu}
+                    onClick={() => {
+                      if (showSpeedMenu) {
+                        setShowSpeedMenu(false);
+                        speedButtonRef.current?.blur();
+                      } else {
+                        setShowSpeedMenu(true);
+                      }
+                    }}
+                  >
+                    <span>{formatPlaybackRateLabel(playbackRate)}</span>
+                  </button>
+                  <div
+                    className={`absolute right-0 bottom-full z-50 mb-2 border rounded-md shadow-lg bg-black/90 border-base-400 transition-all duration-300 ${showSpeedMenu ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`}
+                  >
+                    <div className="flex flex-col">
+                      {PLAYBACK_SPEEDS.map((speed) => {
+                        const isActive = speed === playbackRate;
+                        return (
+                          <button
+                            key={speed}
+                            role="menuitemradio"
+                            aria-checked={isActive}
+                            onClick={() => {
+                              setPlaybackRateForPlayer(speed);
+                              setShowSpeedMenu(false);
+                              speedButtonRef.current?.blur();
+                            }}
+                            className={`flex w-full items-center justify-center px-3 py-1 cursor-pointer text-sm transition-colors ${isActive ? 'text-white bg-accent/20' : 'text-white/80 hover:text-white hover:bg-accent/10'}`}
+                          >
+                            <span>{formatPlaybackRateLabel(speed)}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={toggleFullscreen}
+                  onPointerUp={(e) => e.currentTarget.blur()}
+                  onMouseUp={(e) => e.currentTarget.blur()}
+                  onTouchEnd={(e) => e.currentTarget.blur()}
+                  className="text-white cursor-pointer transition-colors hover:text-accent"
+                  aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+                >
+                  {isFullscreen ? (
+                    <Minimize className="w-5 h-5" />
+                  ) : (
+                    <Maximize className="w-5 h-5" />
+                  )}
                 </button>
               </div>
-              {(video.type === 'Clip' || video.type === 'Highlight') && (
-                <>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="h-10 hover:text-accent"
-                    onClick={handleCopyFile}
-                  >
-                    <label
-                      className={`swap overflow-hidden justify-center ${fileCopied ? 'swap-active' : ''}`}
+            </div>
+          </div>
+        </div>
+        <div
+          className="relative w-full mt-2 overflow-x-scroll overflow-y-hidden select-none shrink-0 timeline-wrapper"
+          ref={scrollContainerRef}
+          onMouseMove={(e) => {
+            handleSegmentDrag(e);
+            handleSegmentResize(e);
+            handleMarkerDrag(e);
+          }}
+        >
+          <div
+            className="ticks-container relative h-[42px]"
+            style={{
+              width: `${duration * pixelsPerSecond}px`,
+              minWidth: '100%',
+              overflow: 'hidden',
+            }}
+          >
+            <AnimatePresence initial={false}>
+              {bookmarksReady &&
+                filteredBookmarks.map((bookmark, index) => {
+                  const timeInSeconds = timeStringToSeconds(bookmark.time);
+                  const leftPos = timeInSeconds * pixelsPerSecond;
+                  const Icon = getIconMapping(video.igdbId)[bookmark.type as BookmarkType] || Skull;
+
+                  return (
+                    <motion.div
+                      key={`bookmark-${bookmark.id ?? index}`}
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.5 }}
+                      transition={{ duration: 0.1 }}
+                      className="tooltip absolute bottom-0 transform -translate-x-1/2 cursor-pointer z-10 flex flex-col items-center text-[#25272e]"
+                      data-tip={`${bookmark.type}${bookmark.subtype ? ` - ${bookmark.subtype}` : ''} (${bookmark.time})`}
+                      style={{ left: `${leftPos}px` }}
+                      onClick={() => {
+                        const seekTo = Math.max(
+                          0,
+                          timeInSeconds - (bookmark.type == BookmarkType.Manual ? 10 : 5),
+                        );
+                        setCurrentTime(seekTo);
+                        if (videoRef.current) {
+                          videoRef.current.currentTime = seekTo;
+                        }
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        handleDeleteBookmark(bookmark.id);
+                      }}
                     >
-                      <div className="swap-off">
-                        <Copy className="w-5 h-5" />
+                      <div className="bg-[#EFAF2B] w-[26px] h-[26px] rounded-full flex items-center justify-center mb-0">
+                        <Icon size={18} strokeWidth={2.5} />
                       </div>
-                      <div className="swap-on">
-                        <Check className="w-5 h-5" />
-                      </div>
-                    </label>
-                    <span>Copy</span>
-                  </Button>
-                </>
-              )}
-              {(video.type === 'Session' || video.type === 'Buffer') && (
+                      <div className="w-[2px] h-[16px] bg-[#EFAF2B]" />
+                    </motion.div>
+                  );
+                })}
+            </AnimatePresence>
+            {minorTicks.map((tickTime) => {
+              if (tickTime >= duration) return null;
+              const leftPos = tickTime * pixelsPerSecond;
+              return (
+                <div
+                  key={`minor-${tickTime}`}
+                  className="absolute bottom-0 h-[6px] border-l border-white/20"
+                  style={{
+                    left: `${leftPos}px`,
+                  }}
+                />
+              );
+            })}
+            {majorTicks.map((tickTime) => {
+              if (tickTime > duration) return null;
+              const leftPos = tickTime * pixelsPerSecond;
+              return (
+                <div
+                  key={`major-${tickTime}`}
+                  className="absolute bottom-0 text-center text-white -translate-x-1/2 select-none whitespace-nowrap"
+                  style={{
+                    left: `${leftPos}px`,
+                  }}
+                >
+                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 text-xs mb-[3px]">
+                    {formatTime(tickTime)}
+                  </span>
+                  <div className="w-[2px] h-[10px] bg-white mx-auto" />
+                </div>
+              );
+            })}
+          </div>
+          <div
+            className="timeline-container bg-base-300 border border-base-400 rounded-lg relative h-[50px] w-full overflow-hidden"
+            style={{
+              width: `${duration * pixelsPerSecond}px`,
+              minWidth: '100%',
+            }}
+            onClick={handleTimelineClick}
+          >
+            {settings.showAudioWaveformInTimeline && (
+              <canvas
+                ref={waveformCanvasRef}
+                height={49}
+                className="absolute top-0 pointer-events-none"
+                style={{
+                  height: '49px',
+                  opacity: 0.6,
+                }}
+              />
+            )}
+            {sortedSegments.map((seg) => {
+              const left = seg.startTime * pixelsPerSecond;
+              const width = (seg.endTime - seg.startTime) * pixelsPerSecond;
+              const hidden = seg.fileName !== video.fileName;
+              return (
                 <>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="h-10 gap-1 hover:text-accent"
-                    onClick={handleCreateClip}
-                    loading={isClipCreatePending}
-                    disabled={isClipCreatePending || Object.keys(clippingProgress).length > 0}
+                  <div
+                    key={seg.id}
+                    className={`absolute top-0 left-0 h-full cursor-move ${hidden ? 'hidden' : ''} transition-colors overflow-hidden rounded-r-sm rounded-l-sm shadow-md
+                                                bg-primary/20 border border-primary/20`}
+                    style={{ left: `${left}px`, width: `${width}px` }}
+                    onMouseEnter={() => {
+                      setHoveredSegmentId(seg.id);
+                    }}
+                    onMouseLeave={() => {
+                      setHoveredSegmentId(null);
+                    }}
+                    onMouseDown={(e) => handleSegmentMouseDown(e, seg.id)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      removeSegment(seg.id);
+                    }}
                   >
-                    <Clapperboard className="w-5 h-5" />
-                    <span>{isClipCreatePending ? 'Creating...' : 'Create Clip'}</span>
-                  </Button>
-                  <div className="indicator">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="h-10 gap-1 hover:text-accent"
-                      onClick={handleAddSegment}
-                    >
-                      {showNoSegmentsIndicator && (
-                        <span className="indicator-item badge badge-sm badge-primary animate-pulse"></span>
+                    <div className="absolute left-0 top-0 h-full w-[4px] bg-accent/80 rounded-l-sm pointer-events-none" />
+                    <div className="absolute right-0 top-0 h-full w-[4px] bg-accent/80 rounded-r-sm pointer-events-none" />
+
+                    {audioTracks.isMultiTrack &&
+                      video.audioTrackNames &&
+                      video.audioTrackNames.length > 1 && (
+                        <button
+                          className={`absolute top-[4px] right-[8px] flex items-center justify-center w-4 h-4 rounded z-10 pointer-events-auto cursor-pointer transition-opacity bg-black/45 text-white/70 hover:bg-black/65 ${hoveredSegmentId === seg.id || (timelineAudioMenu?.segId === seg.id && timelineAudioMenu.visible) ? 'opacity-100' : 'opacity-0'}`}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (timelineAudioMenu?.segId === seg.id && timelineAudioMenu.visible) {
+                              setTimelineAudioMenu((prev) =>
+                                prev ? { ...prev, visible: false } : null,
+                              );
+                              return;
+                            }
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const trackCount = video.audioTrackNames?.length ?? 0;
+                            const estimatedHeight = 16 + trackCount * 24;
+                            const fitsBelow =
+                              rect.bottom + 4 + estimatedHeight <= window.innerHeight;
+                            const top = fitsBelow
+                              ? rect.bottom + 4
+                              : Math.max(8, rect.top - 4 - estimatedHeight);
+                            const next = {
+                              segId: seg.id,
+                              x: rect.left,
+                              y: top,
+                              flipUp: !fitsBelow,
+                              visible: false,
+                            };
+                            setTimelineAudioMenu(next);
+                            requestAnimationFrame(() =>
+                              setTimelineAudioMenu((prev) =>
+                                prev ? { ...prev, visible: true } : null,
+                              ),
+                            );
+                          }}
+                        >
+                          <Headphones className="w-2.5 h-2.5" />
+                        </button>
                       )}
-                      <SquarePlus className="w-5 h-5" />
-                      <span>Add Segment</span>
-                    </Button>
+
+                    <div
+                      className="absolute top-0 -left-[8px] w-[18px] h-full bg-transparent cursor-col-resize pointer-events-auto"
+                      onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'start')}
+                      aria-label="Resize segment start"
+                    />
+                    <div
+                      className="absolute top-0 -right-[8px] w-[18px] h-full bg-transparent cursor-col-resize pointer-events-auto"
+                      onMouseDown={(e) => handleResizeMouseDown(e, seg.id, 'end')}
+                      aria-label="Resize segment end"
+                    />
                   </div>
                 </>
-              )}
-              {video.type === 'Buffer' && (
+              );
+            })}
+            {resizingSegmentId == null && (
+              <div
+                className="absolute top-0 left-0 z-10 w-1 h-full -translate-x-1/2 rounded-sm shadow cursor-pointer marker bg-accent"
+                style={{ left: `${currentTime * pixelsPerSecond}px` }}
+                onMouseDown={handleMarkerDragStart}
+              />
+            )}
+          </div>
+        </div>
+        {timelineAudioMenu &&
+          (() => {
+            const menuSeg = segments.find((s) => s.id === timelineAudioMenu.segId);
+            if (!menuSeg || !video.audioTrackNames) return null;
+            const mutedTracks = menuSeg.mutedAudioTracks ?? [];
+            const trackVolumes = menuSeg.audioTrackVolumes ?? {};
+            return (
+              <div
+                className={`fixed p-2 bg-black/90 rounded-lg border border-base-400 min-w-48 z-[200] cursor-default transition-all duration-300 ${
+                  timelineAudioMenu.visible
+                    ? 'opacity-100 translate-y-0 pointer-events-auto'
+                    : timelineAudioMenu.flipUp
+                      ? 'opacity-0 translate-y-2 pointer-events-none'
+                      : 'opacity-0 -translate-y-2 pointer-events-none'
+                }`}
+                style={{ left: timelineAudioMenu.x, top: timelineAudioMenu.y }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {video.audioTrackNames.map((name, i) => {
+                  const isMuted = mutedTracks.includes(i);
+                  const vol = trackVolumes[i] ?? 1;
+                  return (
+                    <div key={i} className="flex items-center justify-between gap-2 py-0.5">
+                      <label className="flex items-center gap-2 min-w-0 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!isMuted}
+                          onChange={() => {
+                            let newMuted: number[];
+                            if (isMuted) {
+                              // Enabling this track
+                              if (i === 0) {
+                                // Enabling Full Mix: mute all individual tracks
+                                newMuted = (video.audioTrackNames ?? [])
+                                  .map((_, idx) => idx)
+                                  .filter((idx) => idx !== 0);
+                              } else {
+                                // Enabling an individual track: mute Full Mix
+                                newMuted = mutedTracks.filter((t) => t !== i);
+                                if (!newMuted.includes(0)) newMuted.push(0);
+                              }
+                            } else {
+                              // Muting this track
+                              newMuted = [...mutedTracks, i];
+                            }
+                            updateSegment({ ...menuSeg, mutedAudioTracks: newMuted });
+                          }}
+                          className="checkbox checkbox-primary checkbox-xs shrink-0"
+                        />
+                        <span className="text-xs text-white/80 truncate">
+                          {name.replace(' (Default)', '')}
+                        </span>
+                      </label>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.02"
+                          value={vol}
+                          onChange={(e) => {
+                            const newVolumes = {
+                              ...trackVolumes,
+                              [i]: parseFloat(e.target.value),
+                            };
+                            updateSegment({ ...menuSeg, audioTrackVolumes: newVolumes });
+                          }}
+                          className={`w-16 h-1 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-moz-range-thumb]:border-0 ${
+                            isMuted
+                              ? '[&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0 [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:h-0'
+                              : '[&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--color-accent)] [&::-moz-range-thumb]:w-2 [&::-moz-range-thumb]:h-2 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--color-accent)]'
+                          }`}
+                          style={{
+                            backgroundImage: `linear-gradient(to right, var(--color-accent) ${(isMuted ? 0 : vol) * 100}%, #4b5563 ${(isMuted ? 0 : vol) * 100}%)`,
+                          }}
+                        />
+                        <span className="text-[10px] text-white/50 w-7 text-right tabular-nums">
+                          {Math.round(vol * 100)}%
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        <div className="flex items-center justify-between gap-4 py-1 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center border rounded-lg join bg-base-300 border-base-400">
+              <button
+                onClick={() => skipTime(-5)}
+                className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
+              >
+                <RotateCcw className="w-5 h-5" />
+              </button>
+              <button
+                onClick={handlePlayPause}
+                className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
+                data-tip={isPlaying ? 'Pause' : 'Play'}
+              >
+                {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+              </button>
+              <button
+                onClick={() => skipTime(5)}
+                className="h-10 text-gray-300 btn btn-sm btn-secondary hover:text-accent join-item"
+                data-tip="Forward 5s"
+              >
+                <RotateCw className="w-5 h-5" />
+              </button>
+            </div>
+            {(video.type === 'Clip' || video.type === 'Highlight') && (
+              <>
                 <Button
                   variant="primary"
                   size="sm"
                   className="h-10 hover:text-accent"
                   onClick={handleCopyFile}
+                  disabled={!isConnected}
+                  title={!isConnected ? 'Waiting for ScreenLoop to reconnect' : undefined}
                 >
                   <label
                     className={`swap overflow-hidden justify-center ${fileCopied ? 'swap-active' : ''}`}
@@ -2242,120 +2184,176 @@ export default function VideoComponent({ video }: { video: Content }) {
                   </label>
                   <span>Copy</span>
                 </Button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3">
-              {(video.type === 'Session' || video.type === 'Buffer') && (
-                <>
-                  {availableBookmarkTypes.length > 0 && (
-                    <div className="flex items-center h-10 gap-0 px-0 border rounded-lg bg-base-300 join border-base-400">
-                      {availableBookmarkTypes.map((type) => (
-                        <button
-                          key={type}
-                          onClick={() => toggleBookmarkType(type)}
-                          className={`btn btn-sm btn-secondary border-none transition-colors join-item px-2 ${selectedBookmarkTypes.has(type) ? 'text-accent' : 'text-gray-300'}`}
-                        >
-                          {React.createElement(getIconMapping(video.igdbId)[type] || Skull, {
-                            className: 'w-5 h-5',
-                          })}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 rounded-lg bg-base-300">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="h-10 hover:text-accent"
-                      onClick={handleAddBookmark}
-                    >
-                      <BookmarkPlus className="w-5 h-5" />
-                    </Button>
-                  </div>
-                </>
-              )}
-
-              <div className="flex items-center h-10 gap-1 px-0 border rounded-lg bg-base-300 border-base-400">
-                <button
-                  onClick={() => handleZoomChange(false)}
-                  className="btn btn-sm btn-secondary disabled:opacity-100 disabled:bg-base-300"
-                  disabled={zoom <= 1}
+              </>
+            )}
+            {(video.type === 'Session' || video.type === 'Buffer') && (
+              <>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="h-10 gap-1 hover:text-accent"
+                  onClick={handleCreateClip}
+                  loading={isClipCreatePending}
+                  disabled={
+                    !isConnected || isClipCreatePending || Object.keys(clippingProgress).length > 0
+                  }
+                  title={!isConnected ? 'Waiting for ScreenLoop to reconnect' : undefined}
                 >
-                  <Minus className="w-4 h-4" />
-                </button>
-                <span className="text-sm font-medium text-center text-gray-300">
-                  {zoom < 10 ? zoom.toFixed(1) : Math.round(zoom)}x
-                </span>
-                <button
-                  onClick={() => handleZoomChange(true)}
-                  className="btn btn-sm btn-secondary"
-                  disabled={zoom >= 500}
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        {(video.type === 'Session' || video.type === 'Buffer') && (
-          <div className="flex flex-col h-full pt-4 pl-4 pr-1 border-l bg-base-300 text-neutral-content w-52 2xl:w-70.25 border-base-400">
-            <div className="flex-1 p-1 mt-1 overflow-y-scroll">
-              {segments.map((seg, index) => (
-                <SegmentCard
-                  key={seg.id}
-                  segment={seg}
-                  index={index}
-                  moveCard={moveCard}
-                  formatTime={formatTime}
-                  isHovered={hoveredSegmentId === seg.id}
-                  setHoveredSegmentId={setHoveredSegmentId}
-                  removeSegment={removeSegment}
-                  audioTrackNames={video.audioTrackNames}
-                  onMutedAudioTracksChange={(id, mutedTracks) =>
-                    updateSegment({
-                      ...segments.find((s) => s.id === id)!,
-                      mutedAudioTracks: mutedTracks,
-                    })
-                  }
-                  onAudioTrackVolumesChange={(id, volumes) =>
-                    updateSegment({
-                      ...segments.find((s) => s.id === id)!,
-                      audioTrackVolumes: volumes,
-                    })
-                  }
-                />
-              ))}
-            </div>
-            <div className="flex items-center justify-between my-3 mr-3">
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  name="clipClearSegmentsAfterCreatingClip"
-                  checked={settings.clipClearSegmentsAfterCreatingClip}
-                  onChange={(e) =>
-                    updateSettings({ clipClearSegmentsAfterCreatingClip: e.target.checked })
-                  }
-                  className="checkbox checkbox-sm checkbox-accent"
-                />
-                <span className="ml-2 text-sm">Auto-Clear Segments</span>
-              </label>
-            </div>
-            <div className="flex items-center h-10 gap-0 px-0 mb-2 mr-3 rounded-lg bg-base-300 tooltip">
+                  <Clapperboard className="w-5 h-5" />
+                  <span>{isClipCreatePending ? 'Creating...' : 'Create Clip'}</span>
+                </Button>
+                <div className="indicator">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="h-10 gap-1 hover:text-accent"
+                    onClick={handleAddSegment}
+                  >
+                    {showNoSegmentsIndicator && (
+                      <span className="indicator-item badge badge-sm badge-primary animate-pulse"></span>
+                    )}
+                    <SquarePlus className="w-5 h-5" />
+                    <span>Add Segment</span>
+                  </Button>
+                </div>
+              </>
+            )}
+            {video.type === 'Buffer' && (
               <Button
                 variant="primary"
                 size="sm"
-                className="w-full h-10 py-0 hover:text-accent"
-                onClick={clearAllSegments}
-                disabled={segments.length === 0}
+                className="h-10 hover:text-accent"
+                onClick={handleCopyFile}
+                disabled={!isConnected}
+                title={!isConnected ? 'Waiting for ScreenLoop to reconnect' : undefined}
               >
-                <Trash2 className="w-4 h-4" />
-                <span>Clear</span>
+                <label
+                  className={`swap overflow-hidden justify-center ${fileCopied ? 'swap-active' : ''}`}
+                >
+                  <div className="swap-off">
+                    <Copy className="w-5 h-5" />
+                  </div>
+                  <div className="swap-on">
+                    <Check className="w-5 h-5" />
+                  </div>
+                </label>
+                <span>Copy</span>
               </Button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            {(video.type === 'Session' || video.type === 'Buffer') && (
+              <>
+                {availableBookmarkTypes.length > 0 && (
+                  <div className="flex items-center h-10 gap-0 px-0 border rounded-lg bg-base-300 join border-base-400">
+                    {availableBookmarkTypes.map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => toggleBookmarkType(type)}
+                        className={`btn btn-sm btn-secondary border-none transition-colors join-item px-2 ${selectedBookmarkTypes.has(type) ? 'text-accent' : 'text-gray-300'}`}
+                      >
+                        {React.createElement(getIconMapping(video.igdbId)[type] || Skull, {
+                          className: 'w-5 h-5',
+                        })}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center gap-2 rounded-lg bg-base-300">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="h-10 hover:text-accent"
+                    onClick={handleAddBookmark}
+                    disabled={!isConnected}
+                    title={!isConnected ? 'Waiting for ScreenLoop to reconnect' : undefined}
+                  >
+                    <BookmarkPlus className="w-5 h-5" />
+                  </Button>
+                </div>
+              </>
+            )}
+
+            <div className="flex items-center h-10 gap-1 px-0 border rounded-lg bg-base-300 border-base-400">
+              <button
+                onClick={() => handleZoomChange(false)}
+                className="btn btn-sm btn-secondary disabled:opacity-100 disabled:bg-base-300"
+                disabled={zoom <= 1}
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+              <span className="text-sm font-medium text-center text-gray-300">
+                {zoom < 10 ? zoom.toFixed(1) : Math.round(zoom)}x
+              </span>
+              <button
+                onClick={() => handleZoomChange(true)}
+                className="btn btn-sm btn-secondary"
+                disabled={zoom >= 500}
+              >
+                <Plus className="w-4 h-4" />
+              </button>
             </div>
           </div>
-        )}
+        </div>
       </div>
-    </DndProvider>
+      {(video.type === 'Session' || video.type === 'Buffer') && (
+        <div className="flex flex-col h-full pt-4 pl-4 pr-1 border-l bg-base-300 text-neutral-content w-52 2xl:w-70.25 border-base-400">
+          <div className="flex-1 p-1 mt-1 overflow-y-scroll">
+            {segments.map((seg, index) => (
+              <SegmentCard
+                key={seg.id}
+                segment={seg}
+                index={index}
+                moveCard={moveCard}
+                formatTime={formatTime}
+                isHovered={hoveredSegmentId === seg.id}
+                setHoveredSegmentId={setHoveredSegmentId}
+                removeSegment={removeSegment}
+                audioTrackNames={video.audioTrackNames}
+                onMutedAudioTracksChange={(id, mutedTracks) =>
+                  updateSegment({
+                    ...segments.find((s) => s.id === id)!,
+                    mutedAudioTracks: mutedTracks,
+                  })
+                }
+                onAudioTrackVolumesChange={(id, volumes) =>
+                  updateSegment({
+                    ...segments.find((s) => s.id === id)!,
+                    audioTrackVolumes: volumes,
+                  })
+                }
+              />
+            ))}
+          </div>
+          <div className="flex items-center justify-between my-3 mr-3">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                name="clipClearSegmentsAfterCreatingClip"
+                checked={settings.clipClearSegmentsAfterCreatingClip}
+                onChange={(e) =>
+                  updateSettings({ clipClearSegmentsAfterCreatingClip: e.target.checked })
+                }
+                className="checkbox checkbox-sm checkbox-accent"
+              />
+              <span className="ml-2 text-sm">Auto-Clear Segments</span>
+            </label>
+          </div>
+          <div className="flex items-center h-10 gap-0 px-0 mb-2 mr-3 rounded-lg bg-base-300 tooltip">
+            <Button
+              variant="primary"
+              size="sm"
+              className="w-full h-10 py-0 hover:text-accent"
+              onClick={clearAllSegments}
+              disabled={segments.length === 0}
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Clear</span>
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

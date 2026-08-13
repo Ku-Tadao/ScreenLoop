@@ -11,6 +11,9 @@ namespace ScreenLoop.Backend.Media
         public static async Task CompressVideo(string filePath)
         {
             int processId = Guid.NewGuid().GetHashCode();
+            string? tempOutputPath = null;
+            string? createdOutputPath = null;
+            Content.ContentType? createdOutputType = null;
 
             try
             {
@@ -24,7 +27,7 @@ namespace ScreenLoop.Backend.Media
                 string directory = PathUtils.Normalize(Path.GetDirectoryName(filePath)!);
                 string fileName = Path.GetFileNameWithoutExtension(filePath);
                 string extension = Path.GetExtension(filePath);
-                string tempOutputPath = PathUtils.Combine(directory, $"{fileName}_temp_compressed{extension}");
+                tempOutputPath = PathUtils.Combine(directory, $"{fileName}_temp_compressed{extension}");
 
                 TimeSpan durationTs = await FFmpegService.GetVideoDuration(filePath);
                 double? duration = durationTs.TotalSeconds > 0 ? durationTs.TotalSeconds : null;
@@ -94,33 +97,39 @@ namespace ScreenLoop.Backend.Media
                 }
 
                 Content.ContentType contentType = originalContent.Type;
+                createdOutputType = contentType;
                 string? game = originalContent.Game;
 
                 string finalPath;
                 if (Settings.Instance.RemoveOriginalAfterCompression)
                 {
-                    finalPath = PathUtils.Combine(directory, $"{fileName}_compressed{extension}");
-                    if (File.Exists(finalPath)) File.Delete(finalPath);
+                    finalPath = GetAvailableOutputPath(directory, fileName, extension);
                     File.Move(tempOutputPath, finalPath);
+                    createdOutputPath = finalPath;
 
                     Log.Information($"Replaced original with compressed file: {finalPath}");
-                    await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent?.Bookmarks, originalContent?.Title, originalContent?.CreatedAt, originalContent?.IgdbId, isImported: originalContent?.IsImported ?? false, audioTrackNames: originalContent?.AudioTrackNames, isFavorite: true);
+                    await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent?.Bookmarks, originalContent?.Title, originalContent?.CreatedAt, originalContent?.IgdbId, isImported: originalContent?.IsImported ?? false, audioTrackNames: originalContent?.AudioTrackNames, isFavorite: originalContent?.IsFavorite ?? false);
                     await ContentService.CreateThumbnail(finalPath, contentType);
                     await ContentService.CreateWaveformFile(finalPath, contentType);
 
                     await Task.Delay(500);
                     await ContentService.DeleteContent(filePath, contentType, false);
+                    // The replacement is complete once its sidecars exist and the old
+                    // file deletion has been attempted. Later UI/state refresh failures
+                    // must never erase the only remaining playable copy.
+                    createdOutputPath = null;
                 }
                 else
                 {
-                    finalPath = PathUtils.Combine(directory, $"{fileName}_compressed{extension}");
-                    if (File.Exists(finalPath)) File.Delete(finalPath);
+                    finalPath = GetAvailableOutputPath(directory, fileName, extension);
                     File.Move(tempOutputPath, finalPath);
+                    createdOutputPath = finalPath;
                     Log.Information($"Saved compressed file as: {finalPath}");
 
-                    await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent?.Bookmarks, originalContent?.Title, originalContent?.CreatedAt, originalContent?.IgdbId, isImported: originalContent?.IsImported ?? false, audioTrackNames: originalContent?.AudioTrackNames, isFavorite: true);
+                    await ContentService.CreateMetadataFile(finalPath, contentType, game ?? "Unknown", originalContent?.Bookmarks, originalContent?.Title, originalContent?.CreatedAt, originalContent?.IgdbId, isImported: originalContent?.IsImported ?? false, audioTrackNames: originalContent?.AudioTrackNames, isFavorite: originalContent?.IsFavorite ?? false);
                     await ContentService.CreateThumbnail(finalPath, contentType);
                     await ContentService.CreateWaveformFile(finalPath, contentType);
+                    createdOutputPath = null;
                 }
                 await MessageService.SendFrontendMessage("CompressionProgress", new { filePath, progress = 100, status = "done" });
                 await SettingsService.LoadContentFromFolderIntoState();
@@ -128,8 +137,40 @@ namespace ScreenLoop.Backend.Media
             catch (Exception ex)
             {
                 Log.Error(ex, $"Error compressing video: {filePath}");
+
+                if (!string.IsNullOrEmpty(createdOutputPath) && createdOutputType.HasValue)
+                {
+                    await ContentService.DeleteContent(createdOutputPath, createdOutputType.Value, sendToFrontend: false);
+                }
+
                 await MessageService.SendFrontendMessage("CompressionProgress", new { filePath, progress = -1, status = "error", message = ex.Message });
             }
+            finally
+            {
+                if (!string.IsNullOrEmpty(tempOutputPath) && File.Exists(tempOutputPath))
+                {
+                    try
+                    {
+                        File.Delete(tempOutputPath);
+                    }
+                    catch (Exception cleanupEx)
+                    {
+                        Log.Warning(cleanupEx, "Failed to clean up compression temp file {FilePath}", tempOutputPath);
+                    }
+                }
+            }
+        }
+
+        private static string GetAvailableOutputPath(string directory, string fileName, string extension)
+        {
+            string outputPath = PathUtils.Combine(directory, $"{fileName}_compressed{extension}");
+            int suffix = 1;
+            while (File.Exists(outputPath))
+            {
+                outputPath = PathUtils.Combine(directory, $"{fileName}_compressed_{suffix}{extension}");
+                suffix++;
+            }
+            return outputPath;
         }
 
         private static int MapSvtAv1Preset(string preset)

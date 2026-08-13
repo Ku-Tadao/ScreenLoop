@@ -40,6 +40,7 @@ namespace ScreenLoop.Backend.App
         private const string PipeName = "ScreenLoop_SingleInstance";
         private static Mutex? singleInstanceMutex;
         private static Thread? pipeServerThread;
+        private static int shutdownStarted;
         private static string appUrl = string.Empty;
         private const long maxFileSizeBytes = 10 * 1024 * 1024; // 10MB
         private const long trimTargetBytes = 8 * 1024 * 1024; // trim down to 8MB when limit is hit
@@ -98,6 +99,10 @@ namespace ScreenLoop.Backend.App
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Failed to communicate with existing instance: {ex.Message}");
+                    // We do not own the mutex. Continuing would start a second recorder
+                    // that races for the same ports, files, hooks, and OBS runtime.
+                    Environment.Exit(1);
+                    return;
                 }
             }
 
@@ -171,7 +176,7 @@ namespace ScreenLoop.Backend.App
                         var startInfo = new ProcessStartInfo
                         {
                             FileName = "cmd.exe",
-                            Arguments = "/c npm run dev -- --host 127.0.0.1 --port 2882",
+                            Arguments = "/c bun run dev -- --host 127.0.0.1 --port 2882",
                             WorkingDirectory = Path.Join(GetSolutionPath(), @"Frontend")
                         };
 
@@ -194,6 +199,9 @@ namespace ScreenLoop.Backend.App
 
                 // Get the directory containing the executable
                 Log.Information("Serving React app at {AppUrl}", appUrl);
+
+                ContentServer.ConfigureTrustedOrigin(appUrl);
+                MessageService.ConfigureTrustedOrigin(appUrl);
 
                 Task.Run(() =>
                 {
@@ -285,10 +293,28 @@ namespace ScreenLoop.Backend.App
 
         private static void Shutdown()
         {
+            if (Interlocked.Exchange(ref shutdownStarted, 1) != 0)
+                return;
+
             Log.Information("Application shutting down.");
 
-            // Shutdown OBS if it was initialized
-            OBSService.Shutdown();
+            try { ContentServer.StopServer(); }
+            catch (Exception ex) { Log.Warning(ex, "Error stopping content server"); }
+
+            try { PowerModeMonitor.StopMonitoring(); }
+            catch (Exception ex) { Log.Warning(ex, "Error stopping power monitor"); }
+
+            try { KeybindCaptureService.Stop(); }
+            catch (Exception ex) { Log.Warning(ex, "Error stopping keybind capture"); }
+
+            try { AppState.Instance.Dispose(); }
+            catch (Exception ex) { Log.Warning(ex, "Error disposing application state watchers"); }
+
+            try { RecordingPreviewService.OnRecordingStopped(); }
+            catch (Exception ex) { Log.Warning(ex, "Error stopping recording preview"); }
+
+            try { OBSService.Shutdown(); }
+            catch (Exception ex) { Log.Warning(ex, "Error shutting down OBS"); }
 
             Log.CloseAndFlush(); // Ensure all logs are written before the application exits
 

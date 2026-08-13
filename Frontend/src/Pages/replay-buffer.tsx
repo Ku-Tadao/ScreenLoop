@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Camera, Check, Copy, FolderOpen, Mic2, MonitorPlay, Save } from 'lucide-react';
 import { useAppState } from '../Context/AppStateContext';
 import { useSettings } from '../Context/SettingsContext';
@@ -6,6 +6,7 @@ import { useSelectedMenu } from '../Context/SelectedMenuContext';
 import { useSelectedVideo } from '../Context/SelectedVideoContext';
 import { Content } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
+import { useWebSocketContext } from '../Context/WebSocketContext';
 
 const quietWaveformBars = [10, 14, 12, 18, 9, 16, 20, 13, 11, 17, 10, 18, 14, 20, 12, 16, 9, 18];
 
@@ -19,10 +20,10 @@ function formatDuration(duration: string): string {
     : `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
-function relativeTime(dateString: string): string {
+function relativeTime(dateString: string, nowMs: number): string {
   const created = new Date(dateString).getTime();
-  if (Number.isNaN(created)) return '';
-  const seconds = Math.max(1, Math.floor((Date.now() - created) / 1000));
+  if (Number.isNaN(created) || nowMs <= 0) return '';
+  const seconds = Math.max(1, Math.floor((nowMs - created) / 1000));
   if (seconds < 60) return `${seconds}s ago`;
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;
@@ -35,10 +36,12 @@ function relativeTime(dateString: string): string {
 function RecentCaptureCard({
   item,
   cacheFolder,
+  nowMs,
   onOpen,
 }: {
   item: Content;
   cacheFolder: string;
+  nowMs: number;
   onOpen: () => void;
 }) {
   const thumbnailPath = `${cacheFolder}/thumbnails/Replay Buffers/${item.fileName}.jpeg`;
@@ -65,7 +68,9 @@ function RecentCaptureCard({
           {item.title || item.fileName}
         </h4>
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium text-screen-muted">{relativeTime(item.createdAt)}</span>
+          <span className="text-[11px] font-medium text-screen-muted">
+            {relativeTime(item.createdAt, nowMs)}
+          </span>
           <span className="text-[11px] font-medium text-primary">{item.fileSize}</span>
         </div>
       </div>
@@ -78,14 +83,22 @@ export default function ReplayBuffer() {
   const settings = useSettings();
   const { setSelectedMenu } = useSelectedMenu();
   const { setSelectedVideo } = useSelectedVideo();
+  const { isConnected } = useWebSocketContext();
+  const [nowMs, setNowMs] = useState(0);
+
+  useEffect(() => {
+    const updateNow = () => setNowMs(Date.now());
+    updateNow();
+    const intervalId = window.setInterval(updateNow, 30_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const isRecording = Boolean(appState.recording || appState.preRecording);
   const waveformBars = useMemo(() => {
     if (!isRecording) return quietWaveformBars;
     const level = Math.max(0.03, appState.systemAudioLevel);
-    const now = Date.now() / 120;
     return quietWaveformBars.map((base, index) => {
-      const motion = Math.abs(Math.sin(now + index * 0.82));
+      const motion = 0.45 + Math.abs(Math.sin(index * 0.82)) * 0.55;
       const lift = Math.round(level * (30 + motion * 34));
       return Math.max(8, Math.min(64, base + lift));
     });
@@ -99,7 +112,13 @@ export default function ReplayBuffer() {
   );
   const recentBuffers = buffers.slice(0, 2);
 
-  const statusLabel = isRecording ? 'Recording Active' : 'Ready to Capture';
+  const statusLabel = !isConnected
+    ? 'Reconnecting to ScreenLoop'
+    : !appState.hasLoadedObs
+      ? 'Preparing Capture Engine'
+      : isRecording
+        ? 'Recording Active'
+        : 'Ready to Capture';
   const qualityLabel = `${settings.resolution.toUpperCase()} / ${settings.frameRate}FPS`;
   const bufferMinutes = Math.floor(settings.replayBufferDuration / 60);
   const bufferSeconds = settings.replayBufferDuration % 60;
@@ -110,9 +129,11 @@ export default function ReplayBuffer() {
   return (
     <div className="h-full overflow-y-auto bg-screen-deep text-base-content">
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-screen-line bg-screen-deep px-6 py-4">
-        <div className={`flex items-center gap-3 ${isRecording ? 'text-screen-red' : 'text-primary'}`}>
+        <div
+          className={`flex items-center gap-3 ${isRecording ? 'text-screen-red' : isConnected && appState.hasLoadedObs ? 'text-primary' : 'text-warning'}`}
+        >
           <span
-            className={`h-3 w-3 rounded-full ${isRecording ? 'pulse-red bg-screen-red' : 'bg-primary'}`}
+            className={`h-3 w-3 rounded-full ${isRecording ? 'pulse-red bg-screen-red' : isConnected && appState.hasLoadedObs ? 'bg-primary' : 'bg-warning'}`}
           />
           <span className="text-xl font-semibold">{statusLabel}</span>
         </div>
@@ -120,6 +141,7 @@ export default function ReplayBuffer() {
           {isRecording && (
             <button
               className="flex h-10 items-center gap-2 rounded border border-primary bg-primary px-4 text-xs font-semibold uppercase tracking-[0.05em] text-primary-content transition-transform active:scale-95"
+              disabled={!isConnected || !appState.hasLoadedObs}
               onClick={() => sendMessageToBackend('SaveReplayBuffer')}
             >
               <Save className="h-4 w-4" />
@@ -174,6 +196,7 @@ export default function ReplayBuffer() {
           <section className="flex flex-col gap-4 md:col-span-4">
             <button
               className="flex min-h-32 flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-screen-line bg-screen-surface p-4 transition-colors hover:border-primary"
+              disabled={!isConnected}
               onClick={() => sendMessageToBackend('ImportFile', { sectionId: 'replayBuffer' })}
             >
               <FolderOpen className="h-9 w-9 text-screen-muted" />
@@ -209,6 +232,7 @@ export default function ReplayBuffer() {
               <RecentCaptureCard
                 item={item}
                 cacheFolder={appState.cacheFolder}
+                nowMs={nowMs}
                 onOpen={() => setSelectedVideo(item)}
               />
             </div>

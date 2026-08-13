@@ -103,7 +103,9 @@ export default function VideoSettingsSection({
   return (
     <section className="mx-auto max-w-3xl py-4 text-center">
       <h2 className="text-3xl font-semibold text-slate-200">Adjust video quality</h2>
-      <p className="mt-1 text-lg text-screen-muted">Balance system performance and video settings.</p>
+      <p className="mt-1 text-lg text-screen-muted">
+        Balance system performance and video settings.
+      </p>
 
       <div className="mt-12 flex justify-center">
         <div className="flex h-28 w-44 items-center justify-center text-screen-line">
@@ -111,7 +113,7 @@ export default function VideoSettingsSection({
         </div>
       </div>
 
-      <div className="mt-12 grid grid-cols-2 gap-3 text-left">
+      <div className="mt-12 grid grid-cols-1 gap-3 text-left sm:grid-cols-2">
         {presets.map((preset) => {
           const active = settings.videoQualityPreset === preset.id;
           return (
@@ -129,16 +131,19 @@ export default function VideoSettingsSection({
                 {active && <span className="m-1 block h-2 w-2 rounded-full bg-primary" />}
               </span>
               <span className="ml-7 block text-xl font-medium">{preset.label}</span>
-              <span className="ml-7 mt-1 block text-sm text-screen-muted">{preset.description}</span>
+              <span className="ml-7 mt-1 block text-sm text-screen-muted">
+                {preset.description}
+              </span>
             </button>
           );
         })}
       </div>
 
       <div className="mt-10 space-y-3 text-left">
-        <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+        <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[140px_1fr] sm:gap-3">
           <label className="text-lg text-screen-muted">Encoder</label>
           <DropdownSelect
+            ariaLabel="Encoder"
             items={[
               ...(appState.codecs.some((codec) => codec.isHardwareEncoder)
                 ? [{ value: 'gpu', label: 'GPU' }]
@@ -160,10 +165,13 @@ export default function VideoSettingsSection({
           />
         </div>
 
-        <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+        <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[140px_1fr] sm:gap-3">
           <label className="text-lg text-screen-muted">Codec</label>
           <DropdownSelect
-            items={codecOptions.length > 0 ? codecOptions : [{ value: '', label: 'No codec available' }]}
+            ariaLabel="Codec"
+            items={
+              codecOptions.length > 0 ? codecOptions : [{ value: '', label: 'No codec available' }]
+            }
             value={selectedCodecValue}
             onChange={(val) => {
               const codec = appState.codecs.find((item: Codec) => item.internalEncoderId === val);
@@ -178,24 +186,36 @@ export default function VideoSettingsSection({
           />
         </div>
 
-        <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+        <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[140px_1fr] sm:gap-3">
           <label className="text-lg text-screen-muted">Resolution</label>
           <DropdownSelect
+            ariaLabel="Resolution"
             items={[
               { value: '720p', label: '720p (HD)' },
               { value: '1080p', label: '1080p (Full HD)' },
-              ...(appState.maxDisplayHeight >= 1440 ? [{ value: '1440p', label: '1440p (QHD)' }] : []),
+              ...(appState.maxDisplayHeight >= 1440
+                ? [{ value: '1440p', label: '1440p (QHD)' }]
+                : []),
               ...(appState.maxDisplayHeight >= 2160 ? [{ value: '4K', label: '4K (UHD)' }] : []),
             ]}
             value={settings.resolution}
-            onChange={(val) => updateSettings({ resolution: val as SettingsType['resolution'], videoQualityPreset: 'custom' })}
+            onChange={(val) =>
+              updateSettings({
+                resolution: val as SettingsType['resolution'],
+                videoQualityPreset: 'custom',
+              })
+            }
           />
         </div>
 
-        <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+        <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[140px_1fr] sm:gap-3">
           <label className="text-lg text-screen-muted">Bitrate (Kbps)</label>
           <DropdownSelect
-            items={[400, 500, 600, 800, 1000, 1500, 2500, 4000, 6000, 9000, 12000, 18000, 24000, 35000, 50000, 70000].map((value) => ({
+            ariaLabel="Bitrate in kilobits per second"
+            items={[
+              400, 500, 600, 800, 1000, 1500, 2500, 4000, 6000, 9000, 12000, 18000, 24000, 35000,
+              50000, 70000,
+            ].map((value) => ({
               value: String(value),
               label: String(value),
             }))}
@@ -218,9 +238,9 @@ export default function VideoSettingsSection({
           />
         </div>
 
-        <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+        <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[140px_1fr] sm:gap-3">
           <label className="text-lg text-screen-muted">Frame rate (FPS)</label>
-          <div className="grid grid-cols-6 overflow-hidden rounded-lg border border-screen-line bg-screen-main">
+          <div className="grid grid-cols-3 overflow-hidden rounded-lg border border-screen-line bg-screen-main sm:grid-cols-6">
             {fpsOptions.map((fps) => (
               <button
                 key={fps}
@@ -238,11 +258,12 @@ export default function VideoSettingsSection({
           </div>
         </div>
 
-        <div className="grid grid-cols-[140px_1fr] items-center gap-3 pt-3">
+        <div className="grid grid-cols-1 items-center gap-2 pt-3 sm:grid-cols-[140px_1fr] sm:gap-3">
           <label className="text-lg text-screen-muted">Buffer length</label>
           <div>
             <div className="flex items-center gap-2">
               <input
+                aria-label="Replay buffer length in seconds"
                 className="h-10 flex-1 rounded-lg border border-screen-line bg-screen-main px-3 text-slate-200"
                 max={600}
                 min={5}
@@ -266,9 +287,10 @@ export default function VideoSettingsSection({
           </div>
         </div>
 
-        <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+        <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[140px_1fr] sm:gap-3">
           <label className="text-lg text-screen-muted">Monitor</label>
           <DropdownSelect
+            ariaLabel="Monitor"
             items={[
               { value: 'Automatic', label: 'Automatic' },
               ...appState.displays.map((display, index) => ({
@@ -288,16 +310,19 @@ export default function VideoSettingsSection({
           />
         </div>
 
-        <div className="grid grid-cols-[140px_1fr] items-center gap-3">
+        <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[140px_1fr] sm:gap-3">
           <label className="text-lg text-screen-muted">Capture method</label>
           <DropdownSelect
+            ariaLabel="Capture method"
             items={[
               { value: 'Auto', label: 'Auto' },
               { value: 'DXGI', label: 'DXGI' },
               { value: 'WGC', label: 'WGC' },
             ]}
             value={settings.displayCaptureMethod}
-            onChange={(val) => updateSettings({ displayCaptureMethod: val as DisplayCaptureMethod })}
+            onChange={(val) =>
+              updateSettings({ displayCaptureMethod: val as DisplayCaptureMethod })
+            }
           />
         </div>
       </div>

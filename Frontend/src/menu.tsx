@@ -11,17 +11,12 @@ import ClippingCard from './Components/ClippingCard';
 import UpdateCard from './Components/UpdateCard';
 import UnavailableDeviceCard from './Components/UnavailableDeviceCard';
 import AnimatedCard from './Components/AnimatedCard';
-import {
-  Clapperboard,
-  Settings,
-  History,
-  Play,
-  LucideIcon,
-} from 'lucide-react';
+import { Clapperboard, Settings, History, Play, LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRef, useLayoutEffect, useState, useMemo } from 'react';
 import Button from './Components/Button';
 import { MenuItemId, DEFAULT_MENU_ITEMS, menuItemHasContent } from './Models/types';
+import { useWebSocketContext } from './Context/WebSocketContext';
 
 interface MenuProps {
   selectedMenu: string;
@@ -41,6 +36,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const { hasLoadedObs, recording, preRecording } = appState;
   const { updateInfo } = useUpdate();
   const { obsDownloadProgress } = useObsDownload();
+  const { isConnected } = useWebSocketContext();
   const [buttonCooldown, setButtonCooldown] = useState(false);
 
   const buttonRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -102,11 +98,22 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
 
   return (
     <div className="bg-screen-surface w-60 h-screen flex flex-col border-r border-screen-line">
-      <div className="px-3 py-4 border-b border-screen-line">
+      <div className="flex shrink-0 items-center justify-between border-b border-screen-line px-3 py-4">
         <h1 className="text-xl font-semibold tracking-tight text-primary">ScreenLoop</h1>
+        <span
+          className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+            isConnected
+              ? 'border-primary/40 bg-primary/10 text-primary'
+              : 'border-warning/50 bg-warning/10 text-warning'
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          {isConnected ? 'Online' : 'Reconnecting'}
+        </span>
       </div>
       {/* Menu Items */}
-      <div className="flex flex-col px-2 text-left py-4 relative gap-1">
+      <div className="relative flex shrink-0 flex-col gap-1 px-2 py-4 text-left">
         {/* Selection indicator rectangle */}
         <div className="hidden" style={{ top: `${indicatorPosition.top}px` }} />
         <AnimatePresence initial={false} mode="popLayout">
@@ -122,7 +129,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
                     ? 'border-primary bg-screen-raised text-primary shadow-[inset_0_0_18px_rgba(99,247,255,0.08)]'
                     : 'border-transparent text-screen-muted hover:border-screen-line hover:bg-screen-raised hover:text-primary'
                 }`}
-                onMouseDown={() => onSelectMenu(id)}
+                onClick={() => onSelectMenu(id)}
               >
                 <Icon className="w-5 h-5" />
                 {id}
@@ -149,67 +156,69 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
         </AnimatePresence>
       </div>
 
-      {/* Spacer to push content to the bottom */}
-      <div className="grow"></div>
-
       {/* Status Cards */}
-      <div className="mt-auto p-2 space-y-2">
-        <div className="rounded border border-screen-line bg-screen-deep p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-[0.05em] text-screen-muted">
-              Storage
-            </span>
-            <span className="text-[11px] font-medium text-primary">{storagePercent}%</span>
+      <div className="min-h-0 grow overflow-y-auto overscroll-contain">
+        <div className="space-y-2 p-2">
+          <div className="rounded border border-screen-line bg-screen-deep p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-[0.05em] text-screen-muted">
+                Storage
+              </span>
+              <span className="text-[11px] font-medium text-primary">{storagePercent}%</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded bg-screen-surface">
+              <div
+                className="h-full rounded bg-primary"
+                style={{ width: `${storageBarPercent}%` }}
+              />
+            </div>
           </div>
-          <div className="h-1.5 overflow-hidden rounded bg-screen-surface">
-            <div className="h-full rounded bg-primary" style={{ width: `${storageBarPercent}%` }} />
-          </div>
+          <AnimatePresence>
+            {updateInfo && (
+              <AnimatedCard key="update-card">
+                <UpdateCard />
+              </AnimatedCard>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {Object.values(useImports().imports).map((importItem) => (
+              <AnimatedCard key={importItem.id}>
+                <ImportCard importItem={importItem} />
+              </AnimatedCard>
+            ))}
+          </AnimatePresence>
+
+          {/* Show warning if there are unavailable audio devices */}
+          <AnimatePresence>
+            {hasUnavailableDevices() && (
+              <AnimatedCard key="unavailable-device-card">
+                <UnavailableDeviceCard />
+              </AnimatedCard>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {(preRecording || (recording && recording.endTime == null)) && (
+              <AnimatedCard key="recording-card">
+                <RecordingCard recording={recording} preRecording={preRecording} />
+              </AnimatedCard>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {Object.values(useClipping().clippingProgress).map((clipping) => (
+              <AnimatedCard key={clipping.id}>
+                <ClippingCard clipping={clipping} />
+              </AnimatedCard>
+            ))}
+          </AnimatePresence>
         </div>
-        <AnimatePresence>
-          {updateInfo && (
-            <AnimatedCard key="update-card">
-              <UpdateCard />
-            </AnimatedCard>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {Object.values(useImports().imports).map((importItem) => (
-            <AnimatedCard key={importItem.id}>
-              <ImportCard importItem={importItem} />
-            </AnimatedCard>
-          ))}
-        </AnimatePresence>
-
-        {/* Show warning if there are unavailable audio devices */}
-        <AnimatePresence>
-          {hasUnavailableDevices() && (
-            <AnimatedCard key="unavailable-device-card">
-              <UnavailableDeviceCard />
-            </AnimatedCard>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {(preRecording || (recording && recording.endTime == null)) && (
-            <AnimatedCard key="recording-card">
-              <RecordingCard recording={recording} preRecording={preRecording} />
-            </AnimatedCard>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {Object.values(useClipping().clippingProgress).map((clipping) => (
-            <AnimatedCard key={clipping.id}>
-              <ClippingCard clipping={clipping} />
-            </AnimatedCard>
-          ))}
-        </AnimatePresence>
       </div>
 
       {/* OBS Loading Section */}
       {!hasLoadedObs && (
-        <div className="mb-4 flex flex-col items-center px-4">
+        <div className="mb-4 flex shrink-0 flex-col items-center px-4">
           {obsDownloadProgress !== null && obsDownloadProgress < 100 ? (
             <>
               <p className="text-center text-sm text-gray-300 mb-2">Downloading OBS</p>
@@ -237,12 +246,14 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
       )}
 
       <button
-        className="m-3 h-11 rounded border border-primary bg-primary text-sm font-semibold uppercase tracking-[0.05em] text-primary-content transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+        className="m-3 h-11 shrink-0 rounded border border-primary bg-primary text-sm font-semibold uppercase tracking-[0.05em] text-primary-content transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
         disabled={
           buttonCooldown ||
+          !isConnected ||
           !appState.hasLoadedObs ||
           (appState.recording && recording && recording.endTime !== null)
         }
+        title={!isConnected ? 'Waiting for the ScreenLoop backend to reconnect' : undefined}
         onClick={() => {
           setButtonCooldown(true);
           setTimeout(() => setButtonCooldown(false), 1000);

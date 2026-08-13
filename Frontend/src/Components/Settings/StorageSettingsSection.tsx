@@ -70,7 +70,7 @@ export default function StorageSettingsSection({
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-3 gap-3">
+        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="rounded-lg border border-screen-line bg-screen-main p-3">
             <div className="text-xs uppercase text-screen-muted">Drive capacity</div>
             <div className="mt-1 text-xl font-semibold text-slate-200">
@@ -98,7 +98,8 @@ export default function StorageSettingsSection({
             <span>Drive usage</span>
             <span>
               {driveUsedPercent.toFixed(1)}% used
-              {limitPercentOfDrive > 0 && `, ScreenLoop limit is ${limitPercentOfDrive.toFixed(1)}%`}
+              {limitPercentOfDrive > 0 &&
+                `, ScreenLoop limit is ${limitPercentOfDrive.toFixed(1)}%`}
             </span>
           </div>
           <div className="relative h-2 overflow-hidden rounded-full bg-screen-deep">
@@ -133,6 +134,7 @@ export default function StorageSettingsSection({
               onTouchEnd={(e) => commitStorageLimit(e.currentTarget.value)}
             />
             <input
+              aria-label="Media folder size limit in gigabytes"
               className="h-10 w-24 border border-screen-line bg-screen-surface px-3 text-right text-lg text-slate-200"
               max={maxStorageLimit}
               min="1"
@@ -158,18 +160,19 @@ export default function StorageSettingsSection({
             </div>
           </div>
           <div className="mt-3 flex justify-between text-xs text-screen-muted">
-            <span>
-              Keeps {storageHeadroomGb.toFixed(2)} GB headroom inside the selected limit
-            </span>
+            <span>Keeps {storageHeadroomGb.toFixed(2)} GB headroom inside the selected limit</span>
             <span>Slider max: drive capacity ({maxStorageLimit} GB)</span>
           </div>
         </div>
       </div>
 
       <div className="mt-8 text-left">
-        <label className="mb-2 block text-xl text-slate-300">Media folder</label>
+        <label htmlFor="media-folder" className="mb-2 block text-xl text-slate-300">
+          Media folder
+        </label>
         <div className="flex gap-3">
           <input
+            id="media-folder"
             className="h-10 flex-1 rounded-lg border border-screen-line bg-screen-main px-3 text-screen-muted"
             value={settings.contentFolder}
             onChange={(e) => updateSettings({ contentFolder: e.target.value })}
@@ -185,9 +188,12 @@ export default function StorageSettingsSection({
       </div>
 
       <div className="mt-6 text-left">
-        <label className="mb-2 block text-xl text-slate-300">Metadata/cache folder</label>
+        <label htmlFor="cache-folder" className="mb-2 block text-xl text-slate-300">
+          Metadata/cache folder
+        </label>
         <div className="flex gap-3">
           <input
+            id="cache-folder"
             className="h-10 flex-1 rounded-lg border border-screen-line bg-screen-main px-3 text-screen-muted"
             value={settings.cacheFolder}
             onChange={(e) => updateSettings({ cacheFolder: e.target.value })}

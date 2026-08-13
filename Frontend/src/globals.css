@@ -93,6 +93,17 @@ body {
   animation: screen-pulse-red 2s infinite;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --foreground-rgb: 255, 255, 255;
@@ -149,23 +160,18 @@ body {
   animation: shockwave 0.6s ease-out forwards;
 }
 
-/* Remove all focus rings globally */
-*,
-*:focus,
-*:focus-visible,
-*:focus-within,
-dialog,
-dialog:focus,
-.modal,
-.modal-box {
-  outline: none !important;
-  outline-width: 0 !important;
-  outline-style: none !important;
-  outline-color: transparent !important;
-  outline-offset: 0 !important;
-  --tw-ring-offset-width: 0px !important;
-  --tw-ring-width: 0px !important;
-  --tw-ring-color: transparent !important;
-  --tw-ring-offset-color: transparent !important;
-  box-shadow: none !important;
+/* Keep keyboard focus visible without adding rings to pointer interactions. */
+:where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-primary) !important;
+  outline-offset: 2px !important;
+}
+
+:where(input, select, textarea):focus-visible {
+  outline-offset: 1px !important;
+}
+
+@media (forced-colors: active) {
+  :where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline-color: Highlight !important;
+  }
 }

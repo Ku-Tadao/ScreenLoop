@@ -72,7 +72,9 @@ export default function ContentFilters({
       {/* Filter dropdown */}
       <div className="dropdown dropdown-end">
         <button
+          type="button"
           disabled={uniqueGames.length === 0}
+          aria-label="Filter recordings by source"
           className={`btn btn-sm no-animation btn-secondary border border-base-400 h-8 hover:text-primary hover:border-base-400 flex items-center gap-1 text-gray-300 ${uniqueGames.length === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
         >
           <ListFilter size={16} />
@@ -88,6 +90,8 @@ export default function ContentFilters({
           tabIndex={0}
         >
           <button
+            type="button"
+            disabled={selectedGames.length === 0}
             className={`text-sm ml-2 mb-2 ${selectedGames.length > 0 ? 'text-primary cursor-pointer' : 'text-gray-400 cursor-not-allowed'}`}
             onClick={clearFilters}
           >
@@ -137,7 +141,9 @@ export default function ContentFilters({
       {/* Sort dropdown */}
       <div className="dropdown dropdown-end">
         <button
+          type="button"
           disabled={uniqueGames.length === 0}
+          aria-label={`Sort recordings. Current: ${getSortLabel(sortOption)}`}
           className={`btn btn-sm no-animation btn-secondary border border-base-400 hover:text-primary hover:border-base-400 flex items-center gap-1 text-gray-300 h-8 ${uniqueGames.length === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
         >
           <ArrowUpDown size={16} />
@@ -148,7 +154,8 @@ export default function ContentFilters({
           tabIndex={0}
         >
           <li>
-            <a
+            <button
+              type="button"
               className={`flex w-full items-center gap-2 px-4 py-3 ${
                 sortOption === 'newest' ? 'text-primary' : 'text-white'
               } hover:bg-white/5 active:text-primary! active:bg-white/5! rounded-lg transition-all duration-200 hover:pl-5 outline-none`}
@@ -156,10 +163,11 @@ export default function ContentFilters({
             >
               <Clock size={20} />
               <span>Newest</span>
-            </a>
+            </button>
           </li>
           <li>
-            <a
+            <button
+              type="button"
               className={`flex w-full items-center gap-2 px-4 py-3 ${
                 sortOption === 'oldest' ? 'text-primary' : 'text-white'
               } hover:bg-white/5 active:text-primary! active:bg-white/5! rounded-lg transition-all duration-200 hover:pl-5 outline-none`}
@@ -167,10 +175,11 @@ export default function ContentFilters({
             >
               <Clock size={20} />
               <span>Oldest</span>
-            </a>
+            </button>
           </li>
           <li>
-            <a
+            <button
+              type="button"
               className={`flex w-full items-center gap-2 px-4 py-3 ${
                 sortOption === 'size' ? 'text-primary' : 'text-white'
               } hover:bg-white/5 active:text-primary! active:bg-white/5! rounded-lg transition-all duration-200 hover:pl-5 outline-none`}
@@ -178,10 +187,11 @@ export default function ContentFilters({
             >
               <HardDrive size={20} />
               <span>Size</span>
-            </a>
+            </button>
           </li>
           <li>
-            <a
+            <button
+              type="button"
               className={`flex w-full items-center gap-2 px-4 py-3 ${
                 sortOption === 'duration' ? 'text-primary' : 'text-white'
               } hover:bg-white/5 active:text-primary! active:bg-white/5! rounded-lg transition-all duration-200 hover:pl-5 outline-none`}
@@ -189,18 +199,19 @@ export default function ContentFilters({
             >
               <Timer size={20} />
               <span>Duration</span>
-            </a>
+            </button>
           </li>
           <li>
-            <a
+            <button
+              type="button"
               className={`flex w-full items-center gap-2 px-4 py-3 ${
                 sortOption === 'game' ? 'text-primary' : 'text-white'
               } hover:bg-white/5 active:text-primary! active:bg-white/5! rounded-lg transition-all duration-200 hover:pl-5 outline-none`}
               onClick={() => handleSortChange('game')}
             >
               <Gamepad2 size={20} />
-              <span>Game A–Z</span>
-            </a>
+              <span>Game A-Z</span>
+            </button>
           </li>
         </ul>
       </div>

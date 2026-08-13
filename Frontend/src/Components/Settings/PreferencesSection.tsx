@@ -77,9 +77,7 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
               }
               className="checkbox checkbox-primary checkbox-sm"
             />
-            <span className="cursor-pointer">
-              Discard Full Recordings Without Manual Bookmarks
-            </span>
+            <span className="cursor-pointer">Discard Full Recordings Without Manual Bookmarks</span>
           </label>
         </div>
 
@@ -107,6 +105,7 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
           <div className="flex items-center gap-3">
             <VolumeX className="w-4 h-4 text-gray-400 shrink-0" />
             <input
+              aria-label="Sound effects volume"
               type="range"
               name="soundEffectsVolume"
               min="0"

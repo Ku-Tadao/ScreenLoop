@@ -11,6 +11,8 @@ import { sendMessageToBackend } from '../Utils/MessageUtils';
 import ContentFilters, { SortOption } from './ContentFilters';
 import { useModal } from '../Context/ModalContext';
 import Button from './Button';
+import ConfirmationModal from './ConfirmationModal';
+import { useWebSocketContext } from '../Context/WebSocketContext';
 
 interface ContentPageProps {
   contentType: ContentType;
@@ -40,7 +42,8 @@ export default function ContentPage({
   const state = useAppState();
   const { setSelectedVideo } = useSelectedVideo();
   const { scrollPositions, setScrollPosition } = useScroll();
-  const { isModalOpen } = useModal();
+  const { isModalOpen, openModal, closeModal } = useModal();
+  const { isConnected } = useWebSocketContext();
   const containerRef = useRef<HTMLDivElement>(null);
   const isSettingScroll = useRef(false);
 
@@ -158,16 +161,29 @@ export default function ContentPage({
   );
 
   const handleDeleteSelected = useCallback(() => {
-    if (selectedItems.size === 0) return;
+    if (selectedItems.size === 0 || !isConnected) return;
 
     const items = Array.from(selectedItems).map((fileName) => ({
       FileName: fileName,
       ContentType: state.content.find((item) => item.fileName === fileName)?.type ?? contentType,
     }));
 
-    sendMessageToBackend('DeleteMultipleContent', { Items: items });
-    setSelectedItems(new Set());
-  }, [selectedItems, contentType, state.content]);
+    const count = items.length;
+    openModal(
+      <ConfirmationModal
+        title={`Delete ${count} ${count === 1 ? 'file' : 'files'}?`}
+        description="This permanently deletes the selected media files from disk. This action cannot be undone."
+        confirmText="Delete permanently"
+        cancelText="Cancel"
+        onConfirm={() => {
+          sendMessageToBackend('DeleteMultipleContent', { Items: items });
+          setSelectedItems(new Set());
+          closeModal();
+        }}
+        onCancel={closeModal}
+      />,
+    );
+  }, [selectedItems, contentType, state.content, openModal, closeModal, isConnected]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -333,6 +349,8 @@ export default function ContentPage({
               variant="primary"
               size="sm"
               className="no-animation h-8 gap-1"
+              disabled={!isConnected}
+              title={!isConnected ? 'Waiting for ScreenLoop to reconnect' : undefined}
               onClick={() => sendMessageToBackend('ImportFile', { sectionId })}
             >
               <FileUp size={16} />
@@ -354,9 +372,9 @@ export default function ContentPage({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
           {isProgressVisible && progressCardElement}
 
-          {filteredItems.map((video, index) => (
+          {filteredItems.map((video) => (
             <ContentCard
-              key={index}
+              key={`${video.type}:${video.fileName}`}
               content={video}
               onClick={() => handleCardClick(video)}
               type={video.type}
@@ -364,6 +382,25 @@ export default function ContentPage({
               isSelectionMode={isCtrlPressed || selectedItems.size > 0}
             />
           ))}
+
+          {filteredItems.length === 0 && !hasProgress && (
+            <div className="col-span-full flex h-64 flex-col items-center justify-center text-gray-400">
+              <Icon size={48} className="mb-3" />
+              <p className="text-lg font-medium text-gray-200">No matching {title.toLowerCase()}</p>
+              <p className="mt-1 text-sm">Clear the current filters to see all available items.</p>
+              <Button
+                variant="primary"
+                size="sm"
+                className="mt-4"
+                onClick={() => {
+                  handleGameFilterChange([]);
+                  onFavoriteFilterChange?.('all');
+                }}
+              >
+                Clear filters
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center h-64 text-gray-500">
@@ -382,7 +419,14 @@ export default function ContentPage({
             className="fixed bottom-3 left-1/2 -translate-x-1/2 bg-base-300 border border-base-400 rounded-xl px-4 py-2 flex items-center gap-3 shadow-lg z-50"
           >
             <span className="text-sm text-gray-300">{selectedItems.size} Selected</span>
-            <Button variant="danger" size="sm" className="h-8" onClick={handleDeleteSelected}>
+            <Button
+              variant="danger"
+              size="sm"
+              className="h-8"
+              disabled={!isConnected}
+              title={!isConnected ? 'Waiting for ScreenLoop to reconnect' : undefined}
+              onClick={handleDeleteSelected}
+            >
               <Trash2 size={16} />
               Delete
             </Button>

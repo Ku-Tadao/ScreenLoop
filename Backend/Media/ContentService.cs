@@ -303,6 +303,20 @@ namespace ScreenLoop.Backend.Media
                 // Normalize the file path
                 string normalizedFilePath = PathUtils.Normalize(Path.GetFullPath(filePath));
 
+                // Metadata is user-writable cache data and must not authorize deletion.
+                // Restrict the destructive operation to the configured folder for the
+                // declared content type, even if a metadata FilePath was tampered with.
+                string expectedRoot = FolderNames.GetVideoFolderPath(Settings.Instance.ContentFolder, type);
+                if (!IsPathWithinDirectory(normalizedFilePath, expectedRoot))
+                {
+                    Log.Error("Refusing to delete file outside the {ContentType} content root: {FilePath}", type, normalizedFilePath);
+                    if (sendToFrontend)
+                    {
+                        await MessageService.ShowModal("Delete failed", "ScreenLoop refused to delete a file outside its media folder.", "error");
+                    }
+                    return;
+                }
+
                 // Ensure the video file exists before attempting deletion
                 string? videoDirectory = Path.GetDirectoryName(normalizedFilePath);
                 if (File.Exists(normalizedFilePath))
@@ -416,6 +430,22 @@ namespace ScreenLoop.Backend.Media
             finally
             {
                 await SettingsService.LoadContentFromFolderIntoState(sendToFrontend);
+            }
+        }
+
+        private static bool IsPathWithinDirectory(string candidatePath, string directoryPath)
+        {
+            try
+            {
+                string candidate = Path.GetFullPath(candidatePath);
+                string directory = Path.GetFullPath(directoryPath)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+
+                return candidate.StartsWith(directory, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
             }
         }
 

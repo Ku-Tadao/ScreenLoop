@@ -11,6 +11,15 @@ namespace ScreenLoop.Backend.Api
     {
         private static readonly HttpListener _httpListener = new();
         private static CancellationTokenSource? _cancellationTokenSource;
+        private static string? _trustedOrigin;
+
+        public static void ConfigureTrustedOrigin(string appUrl)
+        {
+            if (!Uri.TryCreate(appUrl, UriKind.Absolute, out var uri))
+                throw new ArgumentException("The app URL must be absolute.", nameof(appUrl));
+
+            _trustedOrigin = uri.GetLeftPart(UriPartial.Authority);
+        }
 
         public static void StartServer(string prefix)
         {
@@ -59,6 +68,31 @@ namespace ScreenLoop.Backend.Api
 
             try
             {
+                if (!IsTrustedRequest(context.Request))
+                {
+                    Log.Warning(
+                        "Rejected content request from untrusted origin {Origin} and referrer {Referrer}",
+                        context.Request.Headers["Origin"] ?? "<missing>",
+                        context.Request.UrlReferrer?.GetLeftPart(UriPartial.Authority) ?? "<missing>");
+                    response.StatusCode = (int)HttpStatusCode.Forbidden;
+                    return;
+                }
+
+                if (!string.IsNullOrEmpty(context.Request.Headers["Origin"]))
+                {
+                    response.AddHeader("Access-Control-Allow-Origin", _trustedOrigin!);
+                    response.AddHeader("Vary", "Origin");
+                }
+                response.AddHeader("Access-Control-Expose-Headers", "Accept-Ranges, Content-Length, Content-Range");
+
+                if (context.Request.HttpMethod == "OPTIONS")
+                {
+                    response.AddHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+                    response.AddHeader("Access-Control-Allow-Headers", "Range");
+                    response.StatusCode = (int)HttpStatusCode.NoContent;
+                    return;
+                }
+
                 var rawUrl = context.Request.RawUrl ?? "";
 
                 if (rawUrl.StartsWith("/api/thumbnail"))
@@ -119,8 +153,6 @@ namespace ScreenLoop.Backend.Api
             string rawInput = query["input"] ?? "";
             string timeParam = query["time"] ?? "";
             var response = context.Response;
-
-            response.AddHeader("Access-Control-Allow-Origin", "*");
 
             string? input = ValidateUserPath(rawInput);
             if (input == null || !File.Exists(input))
@@ -207,8 +239,6 @@ namespace ScreenLoop.Backend.Api
             string rawInput = query["input"] ?? "";
             var response = context.Response;
 
-            response.AddHeader("Access-Control-Allow-Origin", "*");
-
             string? fileName = ValidateUserPath(rawInput);
             if (fileName == null || !File.Exists(fileName))
             {
@@ -256,14 +286,13 @@ namespace ScreenLoop.Backend.Api
 
                 if (!string.IsNullOrEmpty(rangeHeader) && rangeHeader.StartsWith("bytes="))
                 {
-                    string[] rangeParts = rangeHeader.Substring(6).Split('-');
-                    if (rangeParts.Length > 0 && !string.IsNullOrEmpty(rangeParts[0]))
+                    string rangeValue = rangeHeader.Substring(6).Trim();
+                    // Multiple ranges are not supported by this lightweight server.
+                    if (rangeValue.Contains(',') || !TryParseSingleRange(rangeValue, fileLength, out start, out end))
                     {
-                        long.TryParse(rangeParts[0], out start);
-                    }
-                    if (rangeParts.Length > 1 && !string.IsNullOrEmpty(rangeParts[1]))
-                    {
-                        long.TryParse(rangeParts[1], out end);
+                        response.StatusCode = (int)HttpStatusCode.RequestedRangeNotSatisfiable;
+                        response.AddHeader("Content-Range", $"bytes */{fileLength}");
+                        return;
                     }
                 }
 
@@ -312,6 +341,40 @@ namespace ScreenLoop.Backend.Api
                     bytesRemaining -= bytesRead;
                 }
             }
+        }
+
+        private static bool TryParseSingleRange(string value, long fileLength, out long start, out long end)
+        {
+            start = 0;
+            end = fileLength - 1;
+            if (fileLength <= 0)
+                return false;
+
+            string[] parts = value.Split('-', 2);
+            if (parts.Length != 2)
+                return false;
+
+            if (string.IsNullOrWhiteSpace(parts[0]))
+            {
+                if (!long.TryParse(parts[1], out long suffixLength) || suffixLength <= 0)
+                    return false;
+
+                suffixLength = Math.Min(suffixLength, fileLength);
+                start = fileLength - suffixLength;
+                return true;
+            }
+
+            if (!long.TryParse(parts[0], out start) || start < 0 || start >= fileLength)
+                return false;
+
+            if (!string.IsNullOrWhiteSpace(parts[1]))
+            {
+                if (!long.TryParse(parts[1], out end) || end < start)
+                    return false;
+                end = Math.Min(end, fileLength - 1);
+            }
+
+            return true;
         }
 
         private static async Task StreamJsonFile(string fileName, HttpListenerResponse response)
@@ -376,6 +439,28 @@ namespace ScreenLoop.Backend.Api
             }
 
             return null;
+        }
+
+        private static bool IsTrustedRequest(HttpListenerRequest request)
+        {
+            if (string.IsNullOrEmpty(_trustedOrigin))
+                return false;
+
+            string? origin = request.Headers["Origin"];
+            if (!string.IsNullOrEmpty(origin))
+            {
+                return Uri.TryCreate(origin, UriKind.Absolute, out var uri) &&
+                       string.Equals(uri.GetLeftPart(UriPartial.Authority), _trustedOrigin, StringComparison.OrdinalIgnoreCase);
+            }
+
+            // Passive media elements such as img/video may omit Origin for a no-CORS
+            // GET, but still send the app origin as the referrer. Require one of the
+            // two browser-controlled headers so arbitrary local clients are rejected.
+            return request.UrlReferrer is not null &&
+                   string.Equals(
+                       request.UrlReferrer.GetLeftPart(UriPartial.Authority),
+                       _trustedOrigin,
+                       StringComparison.OrdinalIgnoreCase);
         }
 
         public static void StopServer()

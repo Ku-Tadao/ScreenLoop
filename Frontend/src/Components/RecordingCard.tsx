@@ -108,7 +108,10 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
               {preRecording ? preRecording.status : 'Recording'}
             </span>
             {!preRecording && (
-              <div className="tooltip tooltip-right flex items-center ml-1.5 [&::before]:delay-200 [&::after]:delay-200" data-tip="Display capture">
+              <div
+                className="tooltip tooltip-right flex items-center ml-1.5 [&::before]:delay-200 [&::after]:delay-200"
+                data-tip="Display capture"
+              >
                 <Monitor className="h-5 w-5 text-gray-300 scale-90" />
               </div>
             )}

@@ -178,6 +178,14 @@ namespace ScreenLoop.Backend.Windows.Storage
                     Log.Information($"Auto-manage deleting {candidate.Content.Type} file: {fileFullName} ({fileSizeMB:F2} MB)");
                     await ContentService.DeleteContent(fileFullName, candidate.Content.Type);
 
+                    // DeleteContent reports user-facing errors internally, so verify the
+                    // destructive operation before claiming space was reclaimed.
+                    if (File.Exists(fileFullName))
+                    {
+                        Log.Warning("Auto-manage could not delete {FilePath}; leaving it out of the reclaimed-space total", fileFullName);
+                        continue;
+                    }
+
                     freedSpaceBytes += fileSize;
                     deletedCount++;
 

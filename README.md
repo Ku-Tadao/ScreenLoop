@@ -41,8 +41,8 @@ ScreenLoop is in developer preview. Core recording and local clip workflows are 
 ```powershell
 dotnet build ScreenLoop.sln
 cd Frontend
-npm install
-npm run build
+bun install --frozen-lockfile
+bun run build
 ```
 
 For local debug runs, ScreenLoop starts the Vite frontend in debug mode:
@@ -59,7 +59,7 @@ Manual release smoke checks before tagging:
 
 ```powershell
 cd Frontend
-npm run build
+bun run build
 cd ..
 dotnet build ScreenLoop.sln
 dotnet publish -c Release --self-contained -r win-x64 -o publish

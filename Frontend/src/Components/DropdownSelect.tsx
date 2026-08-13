@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -18,6 +18,7 @@ interface DropdownSelectProps {
   disabled?: boolean;
   align?: 'start' | 'end';
   size?: 'sm' | 'md' | 'lg';
+  ariaLabel?: string;
 }
 
 export default function DropdownSelect({
@@ -32,11 +33,14 @@ export default function DropdownSelect({
   disabled = false,
   align = 'end',
   size = 'md',
+  ariaLabel,
 }: DropdownSelectProps) {
   const selected = items.find((i) => i.value === value);
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const menuId = useId();
   const [openDirection, setOpenDirection] = useState<'down' | 'up'>('down');
   const [menuMaxHeight, setMenuMaxHeight] = useState<number | undefined>();
 
@@ -74,7 +78,10 @@ export default function DropdownSelect({
       if (!containerRef.current?.contains(e.target as Node)) setIsOpen(false);
     }
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setIsOpen(false);
+      if (e.key === 'Escape' && isOpen) {
+        setIsOpen(false);
+        buttonRef.current?.focus();
+      }
     }
     document.addEventListener('mousedown', onDocMouseDown);
     document.addEventListener('keydown', onKeyDown);
@@ -82,7 +89,13 @@ export default function DropdownSelect({
       document.removeEventListener('mousedown', onDocMouseDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, []);
+  }, [isOpen]);
+
+  const openAndFocus = (index: number) => {
+    computeMenuFit();
+    setIsOpen(true);
+    requestAnimationFrame(() => optionRefs.current[index]?.focus());
+  };
 
   const sizeBtn = size === 'sm' ? 'btn-sm' : size === 'lg' ? 'btn-lg' : '';
   const computedMenuClassName =
@@ -98,17 +111,30 @@ export default function DropdownSelect({
       <button
         ref={buttonRef}
         type="button"
+        aria-controls={menuId}
         aria-expanded={isOpen}
+        aria-haspopup="listbox"
+        aria-label={ariaLabel}
         disabled={disabled}
         className={buttonClassName ?? `btn border-base-400 w-full justify-between ${sizeBtn}`}
-        onMouseDown={(e) => {
-          e.preventDefault();
+        onClick={() => {
           if (disabled) return;
           if (!isOpen) {
             computeMenuFit();
             setIsOpen(true);
           } else {
             setIsOpen(false);
+          }
+        }}
+        onKeyDown={(event) => {
+          if (disabled) return;
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            const selectedIndex = Math.max(
+              0,
+              items.findIndex((item) => item.value === value),
+            );
+            openAndFocus(event.key === 'ArrowUp' ? Math.max(items.length - 1, 0) : selectedIndex);
           }
         }}
       >
@@ -127,7 +153,9 @@ export default function DropdownSelect({
 
       {/* Menu (DaisyUI v5 structure) */}
       <ul
-        tabIndex={0}
+        id={menuId}
+        role="listbox"
+        aria-hidden={!isOpen}
         className={computedMenuClassName}
         style={menuMaxHeight ? { maxHeight: `${menuMaxHeight}px`, overflowY: 'auto' } : undefined}
       >
@@ -136,14 +164,34 @@ export default function DropdownSelect({
           return (
             <li key={item.value} className="w-full">
               <button
+                ref={(element) => {
+                  optionRefs.current[items.indexOf(item)] = element;
+                }}
                 type="button"
+                role="option"
+                aria-selected={isActive}
                 className={`${itemClassName} ${isActive ? 'active !text-primary' : 'text-base-content'} w-full whitespace-nowrap`}
                 aria-current={isActive ? 'true' : undefined}
                 onClick={() => {
                   if (disabled) return;
                   onChange(item.value);
                   setIsOpen(false);
-                  (document.activeElement as HTMLElement | null)?.blur?.();
+                  buttonRef.current?.focus();
+                }}
+                onKeyDown={(event) => {
+                  const index = items.indexOf(item);
+                  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    const offset = event.key === 'ArrowDown' ? 1 : -1;
+                    const next = (index + offset + items.length) % items.length;
+                    optionRefs.current[next]?.focus();
+                  } else if (event.key === 'Home') {
+                    event.preventDefault();
+                    optionRefs.current[0]?.focus();
+                  } else if (event.key === 'End') {
+                    event.preventDefault();
+                    optionRefs.current[items.length - 1]?.focus();
+                  }
                 }}
               >
                 {item.label}

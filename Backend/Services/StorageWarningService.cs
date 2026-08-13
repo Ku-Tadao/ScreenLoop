@@ -16,6 +16,7 @@ namespace ScreenLoop.Backend.Services
 
         // Store pending content folder changes waiting for user confirmation
         private static readonly Dictionary<string, string> _pendingContentFolderChanges = new();
+        private static readonly object PendingLock = new();
 
         private class PendingImport
         {
@@ -44,14 +45,19 @@ namespace ScreenLoop.Backend.Services
 
                 if (action == "import")
                 {
-                    if (!_pendingImports.TryGetValue(warningId, out PendingImport? pendingImport))
+                    PendingImport? pendingImport;
+                    lock (PendingLock)
+                    {
+                        _pendingImports.TryGetValue(warningId, out pendingImport);
+                        if (pendingImport != null)
+                            _pendingImports.Remove(warningId);
+                    }
+
+                    if (pendingImport == null)
                     {
                         Log.Warning($"No pending import found for warningId: {warningId}");
                         return;
                     }
-
-                    // Remove from pending imports
-                    _pendingImports.Remove(warningId);
 
                     if (confirmed)
                     {
@@ -65,14 +71,19 @@ namespace ScreenLoop.Backend.Services
                 }
                 else if (action == "contentFolder")
                 {
-                    if (!_pendingContentFolderChanges.TryGetValue(warningId, out string? newContentFolder))
+                    string? newContentFolder;
+                    lock (PendingLock)
+                    {
+                        _pendingContentFolderChanges.TryGetValue(warningId, out newContentFolder);
+                        if (newContentFolder != null)
+                            _pendingContentFolderChanges.Remove(warningId);
+                    }
+
+                    if (newContentFolder == null)
                     {
                         Log.Warning($"No pending content folder change found for warningId: {warningId}");
                         return;
                     }
-
-                    // Remove from pending changes
-                    _pendingContentFolderChanges.Remove(warningId);
 
                     if (confirmed)
                     {
@@ -117,7 +128,10 @@ namespace ScreenLoop.Backend.Services
                 {
                     // Store pending change and send warning to frontend
                     string warningId = Guid.NewGuid().ToString();
-                    _pendingContentFolderChanges[warningId] = newContentFolder;
+                    lock (PendingLock)
+                    {
+                        _pendingContentFolderChanges[warningId] = newContentFolder;
+                    }
 
                     await MessageService.SendFrontendMessage("StorageWarning", new
                     {
@@ -171,11 +185,14 @@ namespace ScreenLoop.Backend.Services
                 {
                     // Store pending import and send warning to frontend
                     string warningId = Guid.NewGuid().ToString();
-                    _pendingImports[warningId] = new PendingImport
+                    lock (PendingLock)
                     {
-                        Files = selectedFiles,
-                        ContentType = contentType
-                    };
+                        _pendingImports[warningId] = new PendingImport
+                        {
+                            Files = selectedFiles,
+                            ContentType = contentType
+                        };
+                    }
 
                     await MessageService.SendFrontendMessage("StorageWarning", new
                     {

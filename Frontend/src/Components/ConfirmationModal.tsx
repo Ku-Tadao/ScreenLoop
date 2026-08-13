@@ -1,4 +1,4 @@
-import { TriangleAlert } from 'lucide-react';
+import { TriangleAlert, X } from 'lucide-react';
 import Button from './Button';
 
 export interface ConfirmationModalProps {
@@ -34,8 +34,9 @@ export default function ConfirmationModal({
           icon
           className="absolute right-4 top-4 z-10"
           onClick={onCancel}
+          aria-label="Close confirmation"
         >
-          ✕
+          <X aria-hidden="true" size={20} />
         </Button>
       </div>
 

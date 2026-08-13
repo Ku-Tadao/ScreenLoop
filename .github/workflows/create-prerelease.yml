@@ -178,6 +178,19 @@ jobs:
         working-directory: ./Frontend
         run: bun run build
 
+      - name: Verify Frontend quality
+        working-directory: ./Frontend
+        run: |
+          bun run format:check
+          bun run lint
+
+      - name: Verify Backend quality
+        run: |
+          dotnet restore ScreenLoop.sln --locked-mode
+          dotnet format ScreenLoop.sln --no-restore --verify-no-changes
+          dotnet build ScreenLoop.sln -c Release --no-restore
+        shell: pwsh
+
       - name: Move Frontend Build to Resources/wwwroot
         run: |
           $source = "./Frontend/dist"

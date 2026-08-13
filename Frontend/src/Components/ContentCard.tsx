@@ -16,6 +16,9 @@ import {
 } from 'lucide-react';
 import { useCompression } from '../Context/CompressionContext';
 import Button from './Button';
+import { useModal } from '../Context/ModalContext';
+import ConfirmationModal from './ConfirmationModal';
+import { useWebSocketContext } from '../Context/WebSocketContext';
 
 type VideoType = 'Session' | 'Buffer' | 'Clip' | 'Highlight';
 
@@ -28,6 +31,15 @@ interface VideoCardProps {
   isSelectionMode?: boolean; // Whether multi-select mode is active
 }
 
+const readViewedContent = (): Record<string, boolean> => {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem('viewed-content') || '{}');
+    return parsed !== null && typeof parsed === 'object' ? (parsed as Record<string, boolean>) : {};
+  } catch {
+    return {};
+  }
+};
+
 export default function ContentCard({
   content,
   type,
@@ -39,6 +51,8 @@ export default function ContentCard({
   const { showNewBadgeOnVideos } = useSettings();
   const { cacheFolder } = useAppState();
   const { compressionProgress, isCompressing } = useCompression();
+  const { openModal, closeModal } = useModal();
+  const { isConnected } = useWebSocketContext();
 
   const isBeingCompressed = content?.filePath ? isCompressing(content.filePath) : false;
   const currentCompressionProgress = content?.filePath
@@ -174,8 +188,7 @@ export default function ContentCard({
     if (!content) return false;
 
     // Check if this content has been viewed already
-    const viewedContent = localStorage.getItem('viewed-content') || '{}';
-    const viewedContentObj = JSON.parse(viewedContent);
+    const viewedContentObj = readViewedContent();
     if (viewedContentObj[content.fileName]) {
       return false;
     }
@@ -190,19 +203,36 @@ export default function ContentCard({
   const markAsViewed = () => {
     if (!content) return;
 
-    const viewedContent = localStorage.getItem('viewed-content') || '{}';
-    const viewedContentObj = JSON.parse(viewedContent);
+    const viewedContentObj = readViewedContent();
     viewedContentObj[content.fileName] = true;
-    localStorage.setItem('viewed-content', JSON.stringify(viewedContentObj));
+    try {
+      localStorage.setItem('viewed-content', JSON.stringify(viewedContentObj));
+    } catch {
+      // Viewing content should still work when browser storage is unavailable.
+    }
   };
 
   const handleDelete = () => {
+    if (!isConnected) return;
     const parameters: any = {
       FileName: content!.fileName,
       ContentType: type,
     };
 
-    sendMessageToBackend('DeleteContent', parameters);
+    const displayName = content!.title || content!.game || content!.fileName;
+    openModal(
+      <ConfirmationModal
+        title="Delete file?"
+        description={`This permanently deletes "${displayName}" from disk. This action cannot be undone.`}
+        confirmText="Delete permanently"
+        cancelText="Cancel"
+        onConfirm={() => {
+          sendMessageToBackend('DeleteContent', parameters);
+          closeModal();
+        }}
+        onCancel={closeModal}
+      />,
+    );
   };
 
   const handleToggleFavorite = () => {
@@ -274,6 +304,8 @@ export default function ContentCard({
               e.stopPropagation();
               handleToggleFavorite();
             }}
+            disabled={!isConnected}
+            aria-label={content!.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
             title={content!.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
           >
             <Star size={16} fill={content!.isFavorite ? 'currentColor' : 'none'} />
@@ -377,6 +409,7 @@ export default function ContentCard({
                 <li>
                   <Button
                     variant="menu"
+                    disabled={!isConnected}
                     onClick={() => {
                       (document.activeElement as HTMLElement).blur();
                       sendMessageToBackend('CopyFileToClipboard', {
@@ -392,6 +425,7 @@ export default function ContentCard({
               <li>
                 <Button
                   variant="menu"
+                  disabled={!isConnected}
                   onClick={() => {
                     (document.activeElement as HTMLElement).blur();
                     startRenaming();
@@ -404,6 +438,7 @@ export default function ContentCard({
               <li>
                 <Button
                   variant="menu"
+                  disabled={!isConnected}
                   onClick={() => {
                     (document.activeElement as HTMLElement).blur();
                     handleOpenFileLocation();
@@ -418,6 +453,7 @@ export default function ContentCard({
                   <li>
                     <Button
                       variant="menu"
+                      disabled={!isConnected}
                       onClick={() => {
                         (document.activeElement as HTMLElement).blur();
                         sendMessageToBackend('CompressVideo', { FilePath: content!.filePath });
@@ -431,6 +467,7 @@ export default function ContentCard({
               <li>
                 <Button
                   variant="menuDanger"
+                  disabled={!isConnected}
                   onClick={() => {
                     (document.activeElement as HTMLElement).blur();
                     handleDelete();

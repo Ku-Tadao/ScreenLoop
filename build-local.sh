@@ -7,10 +7,10 @@ cd "$SCRIPT_DIR"
 echo "=== Building Frontend ==="
 (cd Frontend && bun run build)
 
-echo "=== Copying Frontend to wwwroot ==="
-rm -rf wwwroot
-mkdir wwwroot
-cp -r Frontend/dist/* wwwroot/
+echo "=== Copying Frontend to Resources/wwwroot ==="
+rm -rf Resources/wwwroot
+mkdir -p Resources/wwwroot
+cp -r Frontend/dist/* Resources/wwwroot/
 
 echo "=== Publishing Backend ==="
 rm -rf publish

@@ -155,7 +155,7 @@ export default function ClipSettingsSection({
 
       {/* Quality Preset Selector */}
       <div className="mb-4">
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <button
             type="button"
             aria-pressed={settings.clipQualityPreset === 'low'}
@@ -165,7 +165,9 @@ export default function ClipSettingsSection({
             onClick={() => handlePresetChange('low')}
           >
             <div className="text-sm font-semibold">Small File</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">AV1 400 Kbps • 30fps</div>
+            <div className="text-xs text-base-content text-opacity-70 mt-1">
+              AV1 400 Kbps • 30fps
+            </div>
           </button>
           <button
             type="button"
@@ -176,7 +178,9 @@ export default function ClipSettingsSection({
             onClick={() => handlePresetChange('standard')}
           >
             <div className="text-sm font-semibold">Standard</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">AV1 800 Kbps • 60fps</div>
+            <div className="text-xs text-base-content text-opacity-70 mt-1">
+              AV1 800 Kbps • 60fps
+            </div>
           </button>
           <button
             type="button"
@@ -187,7 +191,9 @@ export default function ClipSettingsSection({
             onClick={() => handlePresetChange('high')}
           >
             <div className="text-sm font-semibold">High Quality</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">AV1 1.5 Mbps • 60fps</div>
+            <div className="text-xs text-base-content text-opacity-70 mt-1">
+              AV1 1.5 Mbps • 60fps
+            </div>
           </button>
           <button
             type="button"
@@ -225,13 +231,14 @@ export default function ClipSettingsSection({
             }}
             style={{ overflow: 'visible' }}
           >
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {/* Encoder */}
               <div className="form-control">
                 <label className="label">
                   <span className="label-text text-base-content">Encoder</span>
                 </label>
                 <DropdownSelect
+                  ariaLabel="Clip encoder"
                   items={[
                     { value: 'cpu', label: 'CPU' },
                     ...(appState.gpuVendor !== GpuVendor.Unknown
@@ -272,6 +279,7 @@ export default function ClipSettingsSection({
                     <span className="label-text text-base-content">Quality (CRF)</span>
                   </label>
                   <DropdownSelect
+                    ariaLabel="Clip CPU quality"
                     items={cpuQualityItems}
                     value={String(settings.clipQualityCpu)}
                     onChange={(val) => updateSettings({ clipQualityCpu: Number(val) })}
@@ -297,6 +305,7 @@ export default function ClipSettingsSection({
                     </span>
                   </label>
                   <DropdownSelect
+                    ariaLabel="Clip GPU quality"
                     items={
                       appState.gpuVendor === GpuVendor.Nvidia
                         ? [
@@ -354,6 +363,7 @@ export default function ClipSettingsSection({
                   <span className="label-text text-base-content">Codec</span>
                 </label>
                 <DropdownSelect
+                  ariaLabel="Clip codec"
                   items={[
                     { value: 'h264', label: 'H.264' },
                     { value: 'h265', label: 'H.265' },
@@ -363,9 +373,7 @@ export default function ClipSettingsSection({
                           {
                             value: 'av1',
                             label:
-                              settings.clipEncoder === 'cpu'
-                                ? 'AV1 (SVT-AV1 CPU)'
-                                : 'AV1 (GPU)',
+                              settings.clipEncoder === 'cpu' ? 'AV1 (SVT-AV1 CPU)' : 'AV1 (GPU)',
                           },
                         ]
                       : []),
@@ -415,6 +423,7 @@ export default function ClipSettingsSection({
                   <span className="label-text text-base-content">Video Bitrate</span>
                 </label>
                 <DropdownSelect
+                  ariaLabel="Clip video bitrate"
                   items={clipBitrateItems}
                   value={String(settings.clipVideoBitrate)}
                   onChange={(val) => updateSettings({ clipVideoBitrate: Number(val) })}
@@ -431,6 +440,7 @@ export default function ClipSettingsSection({
                   <span className="label-text text-base-content">Resolution</span>
                 </label>
                 <DropdownSelect
+                  ariaLabel="Clip resolution"
                   items={[
                     { value: 'Original', label: 'Original Resolution' },
                     { value: '480p', label: '480p' },
@@ -450,6 +460,7 @@ export default function ClipSettingsSection({
                   <span className="label-text text-base-content">FPS</span>
                 </label>
                 <DropdownSelect
+                  ariaLabel="Clip frame rate"
                   items={[
                     { value: '0', label: 'Original FPS' },
                     { value: '24', label: '24 FPS' },
@@ -469,6 +480,7 @@ export default function ClipSettingsSection({
                   <span className="label-text text-base-content">Audio Bitrate</span>
                 </label>
                 <DropdownSelect
+                  ariaLabel="Clip audio bitrate"
                   items={[
                     { value: '64k', label: '64 kbps (Tiny)' },
                     { value: '96k', label: '96 kbps (Low)' },
@@ -492,6 +504,7 @@ export default function ClipSettingsSection({
                   <span className="label-text text-base-content">Audio Codec</span>
                 </label>
                 <DropdownSelect
+                  ariaLabel="Clip audio codec"
                   items={[
                     { value: 'opus', label: 'Opus' },
                     { value: 'aac', label: 'AAC' },
@@ -507,6 +520,7 @@ export default function ClipSettingsSection({
                   <span className="label-text text-base-content">Preset</span>
                 </label>
                 <DropdownSelect
+                  ariaLabel="Clip encoder preset"
                   items={getAvailablePresets(
                     settings.clipEncoder,
                     settings.clipCodec,

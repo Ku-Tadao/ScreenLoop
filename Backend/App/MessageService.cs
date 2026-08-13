@@ -32,10 +32,21 @@ namespace ScreenLoop.Backend.App
     {
         private static WebSocket? activeWebSocket;
         private static readonly SemaphoreSlim sendLock = new SemaphoreSlim(1, 1);
+        private static string? trustedOrigin;
+        private static int stateSendRunning;
+        private static int stateSendPending;
         private static readonly JsonSerializerOptions jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
+
+        public static void ConfigureTrustedOrigin(string appUrl)
+        {
+            if (!Uri.TryCreate(appUrl, UriKind.Absolute, out var uri))
+                throw new ArgumentException("The app URL must be absolute.", nameof(appUrl));
+
+            trustedOrigin = uri.GetLeftPart(UriPartial.Authority);
+        }
 
         public static async Task HandleMessage(string message)
         {
@@ -563,6 +574,14 @@ namespace ScreenLoop.Backend.App
 
                     if (context.Request.IsWebSocketRequest)
                     {
+                        if (!IsTrustedOrigin(context.Request.Headers["Origin"]))
+                        {
+                            Log.Warning("Rejected WebSocket connection from untrusted origin {Origin}", context.Request.Headers["Origin"] ?? "<missing>");
+                            context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+                            context.Response.Close();
+                            continue;
+                        }
+
                         Log.Information("Received WebSocket connection request");
 
                         // Close the current WebSocket if already active
@@ -624,6 +643,14 @@ namespace ScreenLoop.Backend.App
                         continue;
                     }
 
+                    if (!IsTrustedOrigin(context.Request.Headers["Origin"]))
+                    {
+                        Log.Warning("Rejected legacy WebSocket connection from untrusted origin {Origin}", context.Request.Headers["Origin"] ?? "<missing>");
+                        context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+                        context.Response.Close();
+                        continue;
+                    }
+
                     HttpListenerWebSocketContext wsContext = await context.AcceptWebSocketAsync(null);
                     WebSocket socket = wsContext.WebSocket;
 
@@ -656,22 +683,51 @@ namespace ScreenLoop.Backend.App
         private static async Task HandleWebSocketAsync(WebSocket webSocket)
         {
             byte[] buffer = new byte[4096];
+            const int maxMessageBytes = 1024 * 1024;
             try
             {
                 while (webSocket.State == WebSocketState.Open)
                 {
-                    WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                    using var messageBuffer = new MemoryStream();
+                    WebSocketReceiveResult result;
+                    do
+                    {
+                        result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                        if (result.MessageType == WebSocketMessageType.Close)
+                            break;
+
+                        if (messageBuffer.Length + result.Count > maxMessageBytes)
+                        {
+                            await webSocket.CloseAsync(WebSocketCloseStatus.MessageTooBig, "Message exceeds 1 MB", CancellationToken.None);
+                            return;
+                        }
+
+                        await messageBuffer.WriteAsync(buffer.AsMemory(0, result.Count));
+                    }
+                    while (!result.EndOfMessage);
 
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
                         Log.Information("Client initiated WebSocket closure.");
                         await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client initiated closure", CancellationToken.None);
                     }
+                    else if (result.MessageType != WebSocketMessageType.Text)
+                    {
+                        await webSocket.CloseAsync(WebSocketCloseStatus.InvalidMessageType, "Text messages only", CancellationToken.None);
+                        return;
+                    }
                     else
                     {
-                        string receivedMessage = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                        string receivedMessage = Encoding.UTF8.GetString(messageBuffer.GetBuffer(), 0, checked((int)messageBuffer.Length));
                         Log.Information($"Received message: {receivedMessage}");
-                        await HandleMessage(receivedMessage);
+                        if (receivedMessage == "ping")
+                        {
+                            await SendRawMessage(webSocket, "pong");
+                        }
+                        else
+                        {
+                            await HandleMessage(receivedMessage);
+                        }
                     }
                 }
             }
@@ -700,21 +756,15 @@ namespace ScreenLoop.Backend.App
 
         public static async Task SendFrontendMessage(string method, object content)
         {
+            // State is resynchronized by NewConnection. Do not queue messages while the
+            // window is closed/minimized, otherwise periodic state producers can build a
+            // many-minute backlog behind the send lock.
+            if (activeWebSocket?.State != WebSocketState.Open)
+                return;
+
             await sendLock.WaitAsync();
             try
             {
-                // Wait for up to 10 seconds for the websocket to be open
-                int maxWaitTimeMs = 10000;
-                int waitIntervalMs = 100;
-                int elapsedTime = 0;
-
-                while ((activeWebSocket == null || activeWebSocket.State != WebSocketState.Open)
-                    && elapsedTime < maxWaitTimeMs)
-                {
-                    await Task.Delay(waitIntervalMs);
-                    elapsedTime += waitIntervalMs;
-                }
-
                 if (activeWebSocket?.State == WebSocketState.Open)
                 {
                     var message = new { method, content };
@@ -776,7 +826,50 @@ namespace ScreenLoop.Backend.App
             {
                 Log.Information("Sending state to frontend ({Cause})", cause);
             }
-            await SendFrontendMessage("State", AppState.Instance);
+            Interlocked.Exchange(ref stateSendPending, 1);
+            if (Interlocked.CompareExchange(ref stateSendRunning, 1, 0) != 0)
+                return;
+
+            try
+            {
+                do
+                {
+                    Interlocked.Exchange(ref stateSendPending, 0);
+                    await SendFrontendMessage("State", AppState.Instance);
+                }
+                while (Interlocked.CompareExchange(ref stateSendPending, 0, 1) == 1);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref stateSendRunning, 0);
+                // Close the small race where a producer marked an update pending after
+                // the loop check but before the running flag was released.
+                if (Interlocked.CompareExchange(ref stateSendPending, 0, 1) == 1)
+                    _ = SendStateToFrontend("Coalesced state update");
+            }
+        }
+
+        private static async Task SendRawMessage(WebSocket webSocket, string message)
+        {
+            await sendLock.WaitAsync();
+            try
+            {
+                if (webSocket.State == WebSocketState.Open)
+                    await webSocket.SendAsync(Encoding.UTF8.GetBytes(message), WebSocketMessageType.Text, true, CancellationToken.None);
+            }
+            finally
+            {
+                sendLock.Release();
+            }
+        }
+
+        private static bool IsTrustedOrigin(string? origin)
+        {
+            if (string.IsNullOrEmpty(trustedOrigin) || string.IsNullOrEmpty(origin))
+                return false;
+
+            return Uri.TryCreate(origin, UriKind.Absolute, out var uri) &&
+                   string.Equals(uri.GetLeftPart(UriPartial.Authority), trustedOrigin, StringComparison.OrdinalIgnoreCase);
         }
 
         public static async Task SendGameList()

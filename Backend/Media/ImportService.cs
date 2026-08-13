@@ -145,6 +145,7 @@ namespace ScreenLoop.Backend.Media
                 string sourceFile = selectedFiles[i];
                 string originalFileName = Path.GetFileNameWithoutExtension(sourceFile);
                 string fileExtension = Path.GetExtension(sourceFile);
+                string? targetFilePath = null;
 
                 // Validate file extension is MP4
                 if (!fileExtension.Equals(".mp4", StringComparison.OrdinalIgnoreCase))
@@ -182,7 +183,7 @@ namespace ScreenLoop.Backend.Media
                     // Generate unique filename with timestamp
                     string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
                     string targetFileName = $"{timestamp}_{originalFileName}{fileExtension}";
-                    string targetFilePath = PathUtils.Combine(targetFolder, targetFileName);
+                    targetFilePath = PathUtils.Combine(targetFolder, targetFileName);
 
                     // Ensure unique filename if file already exists
                     int counter = 1;
@@ -311,7 +312,17 @@ namespace ScreenLoop.Backend.Media
                     }
 
                     // Create waveform data asynchronously
-                    _ = Task.Run(async () => await ContentService.CreateWaveformFile(targetFilePath, contentType));
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await ContentService.CreateWaveformFile(targetFilePath, contentType);
+                        }
+                        catch (Exception waveformEx)
+                        {
+                            Log.Warning(waveformEx, "Waveform generation failed for imported file {FilePath}", targetFilePath);
+                        }
+                    });
 
                     importedCount++;
                     Log.Information($"Successfully imported {originalFileName}");
@@ -320,6 +331,18 @@ namespace ScreenLoop.Backend.Media
                 {
                     failedCount++;
                     Log.Error(ex, $"Failed to import {originalFileName}");
+
+                    if (!string.IsNullOrEmpty(targetFilePath))
+                    {
+                        try
+                        {
+                            await ContentService.DeleteContent(targetFilePath, contentType, sendToFrontend: false);
+                        }
+                        catch (Exception cleanupEx)
+                        {
+                            Log.Warning(cleanupEx, "Failed to clean up partial import {FilePath}", targetFilePath);
+                        }
+                    }
 
                     // Send error progress update
                     double progressPercent = (double)i / selectedFiles.Length * 100;

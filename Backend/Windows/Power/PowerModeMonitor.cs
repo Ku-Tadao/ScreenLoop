@@ -19,6 +19,15 @@ namespace ScreenLoop.Backend.Windows.Power
             _isMonitoring = true;
         }
 
+        public static void StopMonitoring()
+        {
+            if (!_isMonitoring)
+                return;
+
+            SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+            _isMonitoring = false;
+        }
+
         private static void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
         {
             switch (e.Mode)

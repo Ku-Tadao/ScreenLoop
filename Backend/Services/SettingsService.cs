@@ -15,6 +15,7 @@ namespace ScreenLoop.Backend.Services
     internal static class SettingsService
     {
         public static readonly string SettingsFilePath = PathUtils.Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ScreenLoop", "settings.json"));
+        private static readonly object SaveLock = new();
 
         public static void SaveSettings()
         {
@@ -33,13 +34,19 @@ namespace ScreenLoop.Backend.Services
                     Directory.CreateDirectory(directory);
                 }
 
-                // Serialize Settings
-                var json = JsonSerializer.Serialize(Settings.Instance, new JsonSerializerOptions
+                lock (SaveLock)
                 {
-                    WriteIndented = true
-                });
+                    // Serialize and replace atomically so a crash or concurrent save cannot
+                    // leave a partially written settings file that looks like a first run.
+                    var json = JsonSerializer.Serialize(Settings.Instance, new JsonSerializerOptions
+                    {
+                        WriteIndented = true
+                    });
 
-                File.WriteAllText(SettingsFilePath, json);
+                    string tempPath = SettingsFilePath + ".tmp";
+                    File.WriteAllText(tempPath, json);
+                    File.Move(tempPath, SettingsFilePath, overwrite: true);
+                }
                 Log.Information($"Settings saved to {SettingsFilePath}");
             }
             catch (Exception ex)
@@ -198,6 +205,7 @@ namespace ScreenLoop.Backend.Services
             }
             catch (Exception ex)
             {
+                Settings.Instance._isBulkUpdating = false;
                 Log.Error($"Failed to load settings: {ex.Message}");
                 return false;
             }
@@ -223,6 +231,7 @@ namespace ScreenLoop.Backend.Services
             }
             catch (Exception ex)
             {
+                Settings.Instance._isBulkUpdating = false;
                 Log.Error($"Failed to update settings: {ex.Message}");
             }
         }
@@ -278,6 +287,14 @@ namespace ScreenLoop.Backend.Services
             {
                 Log.Information($"ClipQualityGpu changed from '{settings.ClipQualityGpu}' to '{updatedSettings.ClipQualityGpu}'");
                 settings.ClipQualityGpu = updatedSettings.ClipQualityGpu;
+                hasChanges = true;
+            }
+
+            // Update ClipVideoBitrate
+            if (settings.ClipVideoBitrate != updatedSettings.ClipVideoBitrate)
+            {
+                Log.Information($"ClipVideoBitrate changed from '{settings.ClipVideoBitrate} Kbps' to '{updatedSettings.ClipVideoBitrate} Kbps'");
+                settings.ClipVideoBitrate = updatedSettings.ClipVideoBitrate;
                 hasChanges = true;
             }
 
@@ -787,6 +804,14 @@ namespace ScreenLoop.Backend.Services
             {
                 Log.Information("Settings updated, saving changes");
                 settings.EndBulkUpdateAndSaveSettings();
+
+                // The cache path is editable as well as selectable via the folder dialog.
+                // Keep both paths behaviorally equivalent so typing a path does not make
+                // all existing metadata/thumbnails disappear from the UI.
+                if (oldCacheFolder != null)
+                {
+                    await MigrateCacheFolder(oldCacheFolder, settings.CacheFolder);
+                }
             }
             else
             {
@@ -1106,14 +1131,24 @@ namespace ScreenLoop.Backend.Services
                         string targetFile = file.Replace(sourcePath, destPath);
                         if (File.Exists(targetFile))
                         {
-                            File.Delete(targetFile);
+                            Log.Warning("Cache migration kept existing destination file and left source untouched: {TargetFile}", targetFile);
+                            continue;
                         }
                         File.Move(file, targetFile);
                     }
 
-                    // Remove old directory after successful migration
-                    Directory.Delete(sourcePath, true);
-                    Log.Information($"Successfully migrated {folderName} from {sourcePath} to {destPath}");
+                    // Remove only directories that are actually empty. Source files that
+                    // collided with valid destination data are deliberately preserved.
+                    foreach (var directory in Directory.GetDirectories(sourcePath, "*", SearchOption.AllDirectories)
+                                                       .OrderByDescending(path => path.Length))
+                    {
+                        if (!Directory.EnumerateFileSystemEntries(directory).Any())
+                            Directory.Delete(directory);
+                    }
+                    if (!Directory.EnumerateFileSystemEntries(sourcePath).Any())
+                        Directory.Delete(sourcePath);
+
+                    Log.Information($"Completed conservative migration of {folderName} from {sourcePath} to {destPath}");
                 }
                 catch (Exception ex)
                 {

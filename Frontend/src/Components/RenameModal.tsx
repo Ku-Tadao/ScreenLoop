@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Content } from '../Models/types';
+import { X } from 'lucide-react';
 import Button from './Button';
 
 interface RenameModalProps {
@@ -61,8 +62,9 @@ export default function RenameModal({ content, onRename, onClose }: RenameModalP
             icon
             className="absolute right-4 top-1 z-10"
             onClick={onClose}
+            aria-label="Close rename dialog"
           >
-            ✕
+            <X aria-hidden="true" size={20} />
           </Button>
         </div>
         <div className="modal-body pt-8">
@@ -70,6 +72,9 @@ export default function RenameModal({ content, onRename, onClose }: RenameModalP
 
           <div className="form-control w-full">
             <input
+              aria-label="Recording title"
+              aria-invalid={nameError}
+              aria-describedby={nameError ? 'rename-error' : undefined}
               ref={nameInputRef}
               type="text"
               value={newName}
@@ -83,7 +88,7 @@ export default function RenameModal({ content, onRename, onClose }: RenameModalP
             />
             {nameError && (
               <label className="label mt-1">
-                <span className="label-text-alt text-error">
+                <span id="rename-error" className="label-text-alt text-error">
                   Invalid title, please avoid using special characters.
                 </span>
               </label>
