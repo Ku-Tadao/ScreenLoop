@@ -507,7 +507,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     vid.playbackRate = playbackRate;
 
     const onLoadedMetadata = () => {
-      setDuration(vid.duration);
+      setDuration(Number.isFinite(vid.duration) ? vid.duration : 0);
       setZoom(1);
     };
 
@@ -540,6 +540,11 @@ export default function VideoComponent({ video }: { video: Content }) {
     vid.addEventListener('pause', onPause);
     vid.addEventListener('volumechange', onVolumeChange);
     vid.addEventListener('ratechange', onRateChange);
+
+    // Local media can load before this effect runs, so synchronize immediately too.
+    if (vid.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      setDuration(Number.isFinite(vid.duration) ? vid.duration : 0);
+    }
 
     return () => {
       vid.removeEventListener('loadedmetadata', onLoadedMetadata);
@@ -973,17 +978,25 @@ export default function VideoComponent({ video }: { video: Content }) {
     };
   }, [isFullscreen]);
 
+  const seekTo = (time: number) => {
+    const clampedTime = Math.max(0, Math.min(time, duration));
+    setCurrentTime(clampedTime);
+    if (videoRef.current) {
+      videoRef.current.currentTime = clampedTime;
+    }
+  };
+
   // Handle clicks on the timeline to seek video
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isInteracting || !scrollContainerRef.current) return;
     const rect = scrollContainerRef.current.getBoundingClientRect();
     const clickPos = e.clientX - rect.left + scrollContainerRef.current.scrollLeft;
-    const newTime = clickPos / pixelsPerSecond;
-    const clampedTime = Math.max(0, Math.min(newTime, duration));
-    setCurrentTime(clampedTime);
-    if (videoRef.current) {
-      videoRef.current.currentTime = clampedTime;
-    }
+    seekTo(clickPos / pixelsPerSecond);
+  };
+
+  const handleSeekPointer = (e: React.PointerEvent<HTMLInputElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width > 0) seekTo(((e.clientX - rect.left) / rect.width) * duration);
   };
 
   // Handle timeline marker drag interactions
@@ -1613,15 +1626,12 @@ export default function VideoComponent({ video }: { video: Content }) {
               max={Math.max(0.01, duration)}
               step={0.01}
               value={Math.min(currentTime, duration)}
-              onChange={(e) => {
-                const t = parseFloat(e.target.value);
-                setCurrentTime(t);
-                if (videoRef.current) videoRef.current.currentTime = t;
+              onChange={(e) => seekTo(parseFloat(e.target.value))}
+              onPointerDown={handleSeekPointer}
+              onPointerMove={(e) => {
+                if (e.buttons === 1) handleSeekPointer(e);
               }}
-              onPointerUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
-              onMouseUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
-              onTouchEnd={(e) => (e.currentTarget as HTMLInputElement).blur()}
-              className="w-full h-5 -my-2 bg-center bg-no-repeat bg-[length:100%_4px] hover:bg-[length:100%_7px] transition-[background-size] duration-300 appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0 [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:h-0 [&::-moz-range-thumb]:border-0"
+              className="w-full h-5 -my-2 bg-center bg-no-repeat bg-[length:100%_4px] hover:bg-[length:100%_7px] transition-[background-size] duration-300 appearance-none cursor-pointer [&::-webkit-slider-runnable-track]:w-full [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:-mt-1 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-moz-range-track]:w-full [&::-moz-range-track]:h-1 [&::-moz-range-track]:bg-transparent [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent [&::-moz-range-thumb]:border-0"
               style={{
                 backgroundImage: `linear-gradient(to right, var(--color-accent) ${(Math.min(currentTime, duration) / Math.max(0.01, duration)) * 100}%, #4b5563 ${(Math.min(currentTime, duration) / Math.max(0.01, duration)) * 100}%)`,
               }}
