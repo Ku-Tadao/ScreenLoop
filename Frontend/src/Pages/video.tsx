@@ -1,4 +1,12 @@
-import React, { useRef, useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
+import React, {
+  useRef,
+  useState,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useCallback,
+} from 'react';
 import { Content, BookmarkType, Segment, Bookmark } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { useSettings, useSettingsUpdater } from '../Context/SettingsContext';
@@ -220,6 +228,7 @@ export default function VideoComponent({ video }: { video: Content }) {
 
   // Audio tracks
   const audioTracks = useAudioTracks(videoRef, video);
+  const [bookmarks, setBookmarks] = useState(video.bookmarks);
   const [showAudioTracks, setShowAudioTracks] = useState(false);
   const [timelineAudioMenu, setTimelineAudioMenu] = useState<{
     segId: number;
@@ -483,7 +492,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     }
   };
 
-  // Initialize video metadata and setup keyboard controls
+  // Initialize video metadata
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
@@ -532,84 +541,14 @@ export default function VideoComponent({ video }: { video: Content }) {
     vid.addEventListener('volumechange', onVolumeChange);
     vid.addEventListener('ratechange', onRateChange);
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      const isInteractiveTarget =
-        target.matches(
-          'input, textarea, select, button, a[href], [contenteditable="true"], [role="button"], [role="menuitem"], [role="menuitemradio"], [role="option"], [role="slider"]',
-        ) || Boolean(target.closest('button, a[href], [role="button"], [role="menuitem"]'));
-
-      // Space to toggle play/pause globally (unless typing)
-      if ((e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar') && !isInteractiveTarget) {
-        if (e.repeat) return; // avoid rapid toggle on key repeat
-        e.preventDefault();
-        handlePlayPause();
-        return;
-      }
-
-      // F to toggle fullscreen overlay (unless typing)
-      if ((e.key === 'f' || e.key === 'F') && !isInteractiveTarget) {
-        if (e.repeat) return;
-        e.preventDefault();
-        toggleFullscreen();
-        return;
-      }
-
-      // Arrow keys: seek 5s back/forward (allow holding)
-      if ((e.key === 'ArrowLeft' || e.code === 'ArrowLeft') && !isInteractiveTarget) {
-        e.preventDefault();
-        showControlsTemporarily();
-        skipTime(-5);
-        return;
-      }
-      if ((e.key === 'ArrowRight' || e.code === 'ArrowRight') && !isInteractiveTarget) {
-        e.preventDefault();
-        showControlsTemporarily();
-        skipTime(5);
-        return;
-      }
-
-      // Volume up/down (5% steps, allow holding)
-      if ((e.key === 'ArrowUp' || e.code === 'ArrowUp') && !isInteractiveTarget) {
-        e.preventDefault();
-        setPlayerVolume((videoRef.current?.volume ?? volume) + 0.05);
-        showControlsTemporarily();
-        return;
-      }
-      if ((e.key === 'ArrowDown' || e.code === 'ArrowDown') && !isInteractiveTarget) {
-        e.preventDefault();
-        setPlayerVolume((videoRef.current?.volume ?? volume) - 0.05);
-        showControlsTemporarily();
-        return;
-      }
-
-      // Mute/unmute
-      if ((e.key === 'm' || e.key === 'M') && !isInteractiveTarget) {
-        e.preventDefault();
-        toggleMute();
-        showControlsTemporarily();
-        return;
-      }
-      if (e.key === 'Escape' && isFullscreen) {
-        e.preventDefault();
-        exitFullscreen();
-      }
-    };
-
-    const keyOptions: AddEventListenerOptions & EventListenerOptions = { capture: true };
-    window.addEventListener('keydown', handleKeyDown, keyOptions);
-
-    // No DOM fullscreen; we manage an overlay + window maximize from backend
-
     return () => {
       vid.removeEventListener('loadedmetadata', onLoadedMetadata);
       vid.removeEventListener('play', onPlay);
       vid.removeEventListener('pause', onPause);
       vid.removeEventListener('volumechange', onVolumeChange);
       vid.removeEventListener('ratechange', onRateChange);
-      window.removeEventListener('keydown', handleKeyDown, keyOptions as any);
     };
-  }, [volume, isMuted, isFullscreen, audioTracks.isMultiTrack]);
+  }, [volume, isMuted, playbackRate, audioTracks.isMultiTrack]);
 
   // Per-segment audio override state, kept in refs for the rAF loop below.
   // `segmentsDirtyRef` is separate from the id ref because `null` is already
@@ -627,21 +566,29 @@ export default function VideoComponent({ video }: { video: Content }) {
   }, [segments]);
 
   // Clean up overrides when multi-track is deactivated
+  const {
+    isMultiTrack: isMultiTrackForSync,
+    setMasterMuted: setMasterMutedForSync,
+    setMasterVolume: setMasterVolumeForSync,
+    setMuteOverride: setMuteOverrideForSync,
+    setVolumeOverride: setVolumeOverrideForSync,
+  } = audioTracks;
   useEffect(() => {
-    if (audioTracks.isMultiTrack) {
+    if (isMultiTrackForSync) {
       // Sync master mute/volume from saved state when entering multi-track
-      audioTracks.setMasterMuted(localStorage.getItem('ScreenLoop-muted') === 'true');
+      setMasterMutedForSync(localStorage.getItem('ScreenLoop-muted') === 'true');
       const savedVol = localStorage.getItem('ScreenLoop-volume');
-      audioTracks.setMasterVolume(savedVol ? parseFloat(savedVol) : 1);
+      setMasterVolumeForSync(savedVol ? parseFloat(savedVol) : 1);
     } else {
-      audioTracks.setMuteOverride(null);
-      audioTracks.setVolumeOverride(null);
+      setMuteOverrideForSync(null);
+      setVolumeOverrideForSync(null);
     }
   }, [
-    audioTracks.isMultiTrack,
-    audioTracks.setMasterMuted,
-    audioTracks.setMuteOverride,
-    audioTracks.setVolumeOverride,
+    isMultiTrackForSync,
+    setMasterMutedForSync,
+    setMasterVolumeForSync,
+    setMuteOverrideForSync,
+    setVolumeOverrideForSync,
   ]);
 
   // Handle video playback time updates using requestAnimationFrame for smooth updates.
@@ -1018,7 +965,8 @@ export default function VideoComponent({ video }: { video: Content }) {
       body.style.overflow = '';
     }
     setVideoTranslate({ x: 0, y: 0 });
-    applyVideoScale(1);
+    videoScaleRef.current = 1;
+    setVideoScale(1);
     return () => {
       el.style.overflow = '';
       body.style.overflow = '';
@@ -1215,25 +1163,6 @@ export default function VideoComponent({ video }: { video: Content }) {
     }
   };
 
-  // Handle global mouse up events for drag operations
-  useEffect(() => {
-    const handleGlobalMouseUp = () => {
-      handleMarkerDragEnd();
-      if (dragState.id !== null) {
-        handleSegmentDragEnd();
-      }
-      if (resizingSegmentId !== null) {
-        handleSegmentResizeEnd();
-      }
-      dragCandidateRef.current = null;
-      resizeCandidateRef.current = null;
-    };
-    window.addEventListener('mouseup', handleGlobalMouseUp);
-    return () => {
-      window.removeEventListener('mouseup', handleGlobalMouseUp);
-    };
-  }, [dragState.id, resizingSegmentId]);
-
   // Start a potential drag on mousedown without blocking click-through
   const handleSegmentMouseDown = (e: React.MouseEvent<HTMLDivElement>, id: number) => {
     if (!scrollContainerRef.current) return;
@@ -1290,6 +1219,17 @@ export default function VideoComponent({ video }: { video: Content }) {
     renderWaveformBuffer();
   }, [renderWaveformBuffer]);
 
+  const waveformFolder =
+    video.type === 'Session'
+      ? 'Full Sessions'
+      : video.type === 'Buffer'
+        ? 'Replay Buffers'
+        : video.type === 'Clip'
+          ? 'Clips'
+          : 'Highlights';
+  const waveformPath = `${appState.cacheFolder}/waveforms/${waveformFolder}/${video.fileName}.peaks.json`;
+  const waveformUrl = `http://localhost:2222/api/content?input=${encodeURIComponent(waveformPath)}&type=${video.type.toLowerCase()}`;
+
   // Fetch waveform peaks data
   useEffect(() => {
     if (!settings.showAudioWaveformInTimeline) {
@@ -1298,8 +1238,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     }
 
     let cancelled = false;
-    const peaksUrl = getWaveformPath();
-    fetch(peaksUrl)
+    fetch(waveformUrl)
       .then((response) => response.json())
       .then((peaksData) => {
         if (cancelled) return;
@@ -1324,7 +1263,7 @@ export default function VideoComponent({ video }: { video: Content }) {
       cancelled = true;
       peaksRef.current = null;
     };
-  }, [settings.showAudioWaveformInTimeline, renderWaveformBuffer]);
+  }, [settings.showAudioWaveformInTimeline, renderWaveformBuffer, waveformUrl]);
 
   // Re-render waveform buffer when zoom changes
   useEffect(() => {
@@ -1415,6 +1354,19 @@ export default function VideoComponent({ video }: { video: Content }) {
     }
   };
 
+  const handleGlobalMouseUp = useEffectEvent(() => {
+    handleMarkerDragEnd();
+    if (dragState.id !== null) handleSegmentDragEnd();
+    if (resizingSegmentId !== null) handleSegmentResizeEnd();
+    dragCandidateRef.current = null;
+    resizeCandidateRef.current = null;
+  });
+
+  useEffect(() => {
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+  }, []);
+
   // Right-click to remove segment disabled to keep segments click-through
 
   // Move segment card in the sidebar
@@ -1428,21 +1380,6 @@ export default function VideoComponent({ video }: { video: Content }) {
   // Get video source URL - use the filePath from metadata
   const getVideoPath = (): string => {
     return `http://localhost:2222/api/content?input=${encodeURIComponent(video.filePath)}&type=${video.type.toLowerCase()}`;
-  };
-
-  // Get audio waveform URL - waveforms are stored in AppData
-  const getWaveformPath = (): string => {
-    // Map type to folder name for waveforms in AppData
-    const folderName =
-      video.type === 'Session'
-        ? 'Full Sessions'
-        : video.type === 'Buffer'
-          ? 'Replay Buffers'
-          : video.type === 'Clip'
-            ? 'Clips'
-            : 'Highlights';
-    const waveformPath = `${appState.cacheFolder}/waveforms/${folderName}/${video.fileName}.peaks.json`;
-    return `http://localhost:2222/api/content?input=${encodeURIComponent(waveformPath)}&type=${video.type.toLowerCase()}`;
   };
 
   const [fileCopied, setFileCopied] = useState(false);
@@ -1466,12 +1403,12 @@ export default function VideoComponent({ video }: { video: Content }) {
       BookmarkType.Death,
       BookmarkType.Manual,
     ];
-    return order.filter((type) => video.bookmarks.some((b) => b.type === type));
-  }, [video.bookmarks]);
+    return order.filter((type) => bookmarks.some((bookmark) => bookmark.type === type));
+  }, [bookmarks]);
 
   const filteredBookmarks = useMemo(() => {
-    return video.bookmarks.filter((bookmark) => selectedBookmarkTypes.has(bookmark.type));
-  }, [video.bookmarks, selectedBookmarkTypes]);
+    return bookmarks.filter((bookmark) => selectedBookmarkTypes.has(bookmark.type));
+  }, [bookmarks, selectedBookmarkTypes]);
 
   const toggleBookmarkType = (type: BookmarkType) => {
     setSelectedBookmarkTypes((prev) => {
@@ -1510,12 +1447,7 @@ export default function VideoComponent({ video }: { video: Content }) {
       time: formattedTime,
     };
 
-    // Add the bookmark to the video's bookmarks array
-    video.bookmarks.push(newBookmark);
-
-    // Force a re-render to show the new bookmark
-    const bookmarks = [...video.bookmarks];
-    video.bookmarks = bookmarks;
+    setBookmarks((current) => [...current, newBookmark]);
 
     // Send message to backend to add bookmark
     sendMessageToBackend('AddBookmark', {
@@ -1529,18 +1461,8 @@ export default function VideoComponent({ video }: { video: Content }) {
 
   const handleDeleteBookmark = (bookmarkId: number) => {
     if (!isConnected) return;
-    // Find the bookmark in the video's bookmarks array
-    const bookmarkIndex = video.bookmarks.findIndex((b) => b.id === bookmarkId);
-
-    if (bookmarkIndex !== -1) {
-      // Remove the bookmark from the array
-      video.bookmarks.splice(bookmarkIndex, 1);
-
-      // Force a re-render to update the UI
-      const bookmarks = [...video.bookmarks];
-      video.bookmarks = bookmarks;
-
-      // Send message to backend to delete the bookmark
+    if (bookmarks.some((bookmark) => bookmark.id === bookmarkId)) {
+      setBookmarks((current) => current.filter((bookmark) => bookmark.id !== bookmarkId));
       sendMessageToBackend('DeleteBookmark', {
         FilePath: video.filePath,
         ContentType: video.type,
@@ -1573,6 +1495,55 @@ export default function VideoComponent({ video }: { video: Content }) {
       localStorage.setItem('ScreenLoop-muted', newMutedState.toString());
     }
   };
+
+  const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    const target = event.target as HTMLElement;
+    const isInteractiveTarget =
+      target.matches(
+        'input, textarea, select, button, a[href], [contenteditable="true"], [role="button"], [role="menuitem"], [role="menuitemradio"], [role="option"], [role="slider"]',
+      ) || Boolean(target.closest('button, a[href], [role="button"], [role="menuitem"]'));
+
+    if (
+      (event.code === 'Space' || event.key === ' ' || event.key === 'Spacebar') &&
+      !isInteractiveTarget
+    ) {
+      if (event.repeat) return;
+      event.preventDefault();
+      handlePlayPause();
+    } else if ((event.key === 'f' || event.key === 'F') && !isInteractiveTarget) {
+      if (event.repeat) return;
+      event.preventDefault();
+      toggleFullscreen();
+    } else if (event.key === 'ArrowLeft' && !isInteractiveTarget) {
+      event.preventDefault();
+      showControlsTemporarily();
+      skipTime(-5);
+    } else if (event.key === 'ArrowRight' && !isInteractiveTarget) {
+      event.preventDefault();
+      showControlsTemporarily();
+      skipTime(5);
+    } else if (event.key === 'ArrowUp' && !isInteractiveTarget) {
+      event.preventDefault();
+      setPlayerVolume((videoRef.current?.volume ?? volume) + 0.05);
+      showControlsTemporarily();
+    } else if (event.key === 'ArrowDown' && !isInteractiveTarget) {
+      event.preventDefault();
+      setPlayerVolume((videoRef.current?.volume ?? volume) - 0.05);
+      showControlsTemporarily();
+    } else if ((event.key === 'm' || event.key === 'M') && !isInteractiveTarget) {
+      event.preventDefault();
+      toggleMute();
+      showControlsTemporarily();
+    } else if (event.key === 'Escape' && isFullscreen) {
+      event.preventDefault();
+      exitFullscreen();
+    }
+  });
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, []);
 
   const setPlaybackRateForPlayer = (rate: number) => {
     const r = Math.max(0.25, Math.min(2, rate));

@@ -161,6 +161,8 @@ namespace ScreenLoop.Backend.Media
 
         public static async Task CreateWaveformFile(string videoFilePath, Content.ContentType type)
         {
+            string? tempPcmPath = null;
+            string? waveformJsonPathTemp = null;
             try
             {
                 if (!FFmpegService.FFmpegExists())
@@ -183,8 +185,8 @@ namespace ScreenLoop.Backend.Media
                     Directory.CreateDirectory(waveformFolderPath);
                 }
 
-                string tempPcmPath = PathUtils.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.pcm");
-                string waveformJsonPathTemp = PathUtils.Combine(waveformFolderPath, $"{contentFileName}.peaks.temp.json");
+                tempPcmPath = PathUtils.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.pcm");
+                waveformJsonPathTemp = PathUtils.Combine(waveformFolderPath, $"{contentFileName}.peaks.temp.json");
                 string waveformJsonPath = PathUtils.Combine(waveformFolderPath, $"{contentFileName}.peaks.json");
 
                 // Decode audio to raw mono 16-bit PCM at a modest sample rate for efficiency.
@@ -266,13 +268,15 @@ namespace ScreenLoop.Backend.Media
                 await File.WriteAllTextAsync(waveformJsonPathTemp, json);
                 File.Move(waveformJsonPathTemp, waveformJsonPath, true);
                 Log.Information($"Waveform JSON successfully created at: {waveformJsonPath}");
-
-                // Cleanup
-                try { File.Delete(tempPcmPath); } catch { /* ignore */ }
             }
             catch (Exception ex)
             {
                 Log.Error($"Error creating waveform JSON: {ex.Message}");
+            }
+            finally
+            {
+                try { if (tempPcmPath != null) File.Delete(tempPcmPath); } catch { }
+                try { if (waveformJsonPathTemp != null) File.Delete(waveformJsonPathTemp); } catch { }
             }
         }
 

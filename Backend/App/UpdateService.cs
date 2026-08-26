@@ -22,6 +22,7 @@ namespace ScreenLoop.Backend.App
             try
             {
                 Core.Models.AppState.Instance.IsCheckingForUpdates = true;
+                LatestUpdateInfo = null;
 
                 bool useBetaChannel = Core.Models.Settings.Instance.ReceiveBetaUpdates;
                 if (useBetaChannel)
@@ -91,6 +92,7 @@ namespace ScreenLoop.Backend.App
             }
             catch (Exception ex)
             {
+                LatestUpdateInfo = null;
                 Log.Error(ex, "Error during update check/installation");
                 Core.Models.AppState.Instance.IsCheckingForUpdates = false;
                 return false;
@@ -265,8 +267,6 @@ namespace ScreenLoop.Backend.App
 
                 // Filter and process releases
                 var releaseNotesList = new List<object>();
-                NuGet.Versioning.SemanticVersion? targetVersion = null;
-
                 // Check if beta releases should be included
                 bool includeBeta = Core.Models.Settings.Instance.ReceiveBetaUpdates;
 
@@ -286,32 +286,20 @@ namespace ScreenLoop.Backend.App
                     }
 
                     // Handle prerelease versions (release candidate and beta)
-                    string displayVersion = versionString;
-                    NuGet.Versioning.SemanticVersion? releaseVersion = null;
-
                     if (versionString.Contains("-rc.") || versionString.Contains("-beta."))
                     {
                         // Extract base version without prerelease suffix for comparison
                         string baseVersionStr = versionString.Split('-')[0];
-                        if (!NuGet.Versioning.SemanticVersion.TryParse(baseVersionStr, out releaseVersion))
+                        if (!NuGet.Versioning.SemanticVersion.TryParse(baseVersionStr, out _))
                         {
                             Log.Warning($"Could not parse version from tag: {release.TagName}");
                             continue;
                         }
                     }
-                    else if (!NuGet.Versioning.SemanticVersion.TryParse(versionString, out releaseVersion))
+                    else if (!NuGet.Versioning.SemanticVersion.TryParse(versionString, out _))
                     {
                         Log.Warning($"Could not parse version from tag: {release.TagName}");
                         continue;
-                    }
-
-                    // Skip if this version is not what we're looking for based on includeOnlyRecentUpdate
-                    if (targetVersion != null)
-                    {
-                        if (releaseVersion <= currentVersion)
-                        {
-                            continue;
-                        }
                     }
 
                     // Include release notes
@@ -329,7 +317,7 @@ namespace ScreenLoop.Backend.App
                     });
 
                     // Limit to 20 releases (80 if beta is enabled)
-                    if (targetVersion == null && releaseNotesList.Count >= (includeBeta ? 80 : 20))
+                    if (releaseNotesList.Count >= (includeBeta ? 80 : 20))
                     {
                         break;
                     }

@@ -94,6 +94,7 @@ export function useAudioTracks(
   videoRef: React.RefObject<HTMLVideoElement | null>,
   video: Content,
 ): AudioTrackState {
+  const audioTrackNames = video.audioTrackNames;
   const [tracks, setTracks] = useState<AudioTrackInfo[]>([]);
   const [volumes, setVolumes] = useState<Record<number, number>>({});
   const [mutedTracks, setMutedTracks] = useState<Set<number>>(new Set());
@@ -368,7 +369,7 @@ export function useAudioTracks(
   );
 
   useEffect(() => {
-    if (!video.audioTrackNames || video.audioTrackNames.length <= 1) {
+    if (!audioTrackNames || audioTrackNames.length <= 1) {
       setTracks([]);
       return;
     }
@@ -525,7 +526,7 @@ export function useAudioTracks(
 
       for (let i = 0; i < audioTracks.length; i++) {
         const trk = audioTracks[i];
-        const name = video.audioTrackNames?.[i] ?? `Track ${i + 1}`;
+        const name = audioTrackNames[i] ?? `Track ${i + 1}`;
 
         const trakBox = file.getTrackById(trk.id) as unknown as
           | {
@@ -628,13 +629,14 @@ export function useAudioTracks(
       pumpDecoders();
     })();
 
+    const trackData = trackDataRef.current;
     return () => {
       cancelled = true;
       abortController.abort();
       generationRef.current += 1;
 
       stopAllSources();
-      for (const td of trackDataRef.current.values()) {
+      for (const td of trackData.values()) {
         try {
           td.decoder.close();
         } catch {
@@ -646,7 +648,7 @@ export function useAudioTracks(
           // ignore
         }
       }
-      trackDataRef.current.clear();
+      trackData.clear();
 
       const master = masterGainRef.current;
       if (master) {
@@ -668,7 +670,7 @@ export function useAudioTracks(
     };
   }, [
     video.filePath,
-    video.audioTrackNames?.join('|'),
+    audioTrackNames,
     pumpDecoders,
     onDecoderOutput,
     rangeFetch,

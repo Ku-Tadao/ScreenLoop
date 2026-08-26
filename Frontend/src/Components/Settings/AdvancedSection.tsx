@@ -83,7 +83,7 @@ export default function AdvancedSection({
                   size="sm"
                   items={[
                     { value: '', label: 'Automatic' },
-                    ...appState.availableOBSVersions
+                    ...[...appState.availableOBSVersions]
                       .sort((a, b) => {
                         return b.version.localeCompare(a.version, undefined, { numeric: true });
                       })
@@ -114,7 +114,7 @@ export default function AdvancedSection({
           </Button>
           <div>
             ScreenLoop{' '}
-            {__APP_VERSION__ === 'Developer Preview' ? __APP_VERSION__ : 'v' + __APP_VERSION__}
+            {__APP_VERSION__ === '0.0.0-development' ? 'Developer Preview' : `v${__APP_VERSION__}`}
           </div>
         </div>
       </div>

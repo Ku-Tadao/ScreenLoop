@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { useSettings } from '../Context/SettingsContext';
 import { useAppState } from '../Context/AppStateContext';
 import { BookmarkType, Content } from '../Models/types';
@@ -21,6 +21,7 @@ import ConfirmationModal from './ConfirmationModal';
 import { useWebSocketContext } from '../Context/WebSocketContext';
 
 type VideoType = 'Session' | 'Buffer' | 'Clip' | 'Highlight';
+const contentAgeReferenceTime = Date.now();
 
 interface VideoCardProps {
   content?: Content; // Optional for skeleton cards
@@ -89,6 +90,12 @@ export default function ContentCard({
       window.removeEventListener('scroll', handler, true);
     };
   }, [isDropdownOpen, updateDropdownPosition]);
+
+  // Check if content was created within the last hour and hasn't been viewed yet.
+  const isRecent = content
+    ? !readViewedContent()[content.fileName] &&
+      contentAgeReferenceTime - new Date(content.createdAt).getTime() <= 60 * 60 * 1000
+    : false;
 
   if (isLoading) {
     // Render a skeleton card
@@ -182,22 +189,6 @@ export default function ContentCard({
   const formattedDuration = formatDuration(content!.duration);
   const manualBookmarkCount =
     content?.bookmarks?.filter((b) => b.type === BookmarkType.Manual).length ?? 0;
-
-  // Check if content was created within the last hour and hasn't been viewed yet
-  const isRecent = useMemo((): boolean => {
-    if (!content) return false;
-
-    // Check if this content has been viewed already
-    const viewedContentObj = readViewedContent();
-    if (viewedContentObj[content.fileName]) {
-      return false;
-    }
-
-    const createdAt = new Date(content.createdAt);
-    const now = new Date();
-    const diffInHours = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
-    return diffInHours <= 1; // Content is considered recent if created within the last hour
-  }, [content?.fileName, content?.createdAt]);
 
   // Mark content as viewed when clicked
   const markAsViewed = () => {

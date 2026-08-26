@@ -13,7 +13,7 @@ import UnavailableDeviceCard from './Components/UnavailableDeviceCard';
 import AnimatedCard from './Components/AnimatedCard';
 import { Clapperboard, Settings, History, Play, LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useRef, useLayoutEffect, useState, useMemo } from 'react';
+import { useRef, useLayoutEffect, useState, useMemo, useCallback } from 'react';
 import Button from './Components/Button';
 import { MenuItemId, DEFAULT_MENU_ITEMS, menuItemHasContent } from './Models/types';
 import { useWebSocketContext } from './Context/WebSocketContext';
@@ -52,7 +52,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
     );
   }, [settings.menuItems, appState.content]);
 
-  const computeIndicatorPosition = () => {
+  const computeIndicatorPosition = useCallback(() => {
     if (!visibleMenuItems.some((item) => item.id === selectedMenu)) return;
     const rowEl = buttonRefs.current[selectedMenu];
     if (!rowEl) return;
@@ -60,7 +60,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
     const buttonHeight = buttonEl?.offsetHeight || 48;
     const indicatorTop = rowEl.offsetTop + buttonHeight / 2 - 20;
     setIndicatorPosition({ top: indicatorTop });
-  };
+  }, [selectedMenu, visibleMenuItems]);
 
   useLayoutEffect(() => {
     // Skip while the active row is mid-exit (App.tsx will redirect selectedMenu to a
@@ -71,7 +71,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
     // offsetTop only at the end — this second pass corrects the indicator to match.
     const timeoutId = setTimeout(computeIndicatorPosition, 220);
     return () => clearTimeout(timeoutId);
-  }, [selectedMenu, visibleMenuItems]);
+  }, [computeIndicatorPosition]);
 
   const hasUnavailableDevices = () => {
     const unavailableInput = settings.inputDevices.some(

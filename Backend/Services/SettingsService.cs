@@ -240,6 +240,7 @@ namespace ScreenLoop.Backend.Services
         {
             var settings = Settings.Instance;
             bool hasChanges = false;
+            bool contentFolderChanged = false;
 
             // Begin bulk update to suppress multiple state updates
             settings.BeginBulkUpdate();
@@ -484,6 +485,7 @@ namespace ScreenLoop.Backend.Services
                 if (shouldProceed)
                 {
                     settings.ContentFolder = updatedSettings.ContentFolder;
+                    contentFolderChanged = true;
                     hasChanges = true;
                 }
                 // If not proceeding, a warning modal was sent to the frontend
@@ -811,6 +813,11 @@ namespace ScreenLoop.Backend.Services
                 if (oldCacheFolder != null)
                 {
                     await MigrateCacheFolder(oldCacheFolder, settings.CacheFolder);
+                }
+
+                if (contentFolderChanged)
+                {
+                    await LoadContentFromFolderIntoState();
                 }
             }
             else

@@ -48,6 +48,17 @@ namespace ScreenLoop.Backend.Media
                     return;
                 }
 
+                if (segments.Any(segment =>
+                    !double.IsFinite(segment.StartTime) ||
+                    !double.IsFinite(segment.EndTime) ||
+                    segment.StartTime < 0 ||
+                    segment.EndTime <= segment.StartTime))
+                {
+                    Log.Error("One or more clip segments have invalid time bounds.");
+                    await MessageService.SendFrontendMessage("ClipProgress", new { id, progress = -1, segments, error = "Invalid clip segment" });
+                    return;
+                }
+
                 double totalDuration = segments.Sum(s => s.EndTime - s.StartTime);
                 if (totalDuration <= 0)
                 {
@@ -611,6 +622,10 @@ namespace ScreenLoop.Backend.Media
                         }
 
                         metadataArgs = "-metadata:s:a:0 title=\"Full Mix\" ";
+                    }
+                    else
+                    {
+                        mapArgs = "-map 0:v:0 -an ";
                     }
                 }
                 else if (settings.ClipKeepSeparateAudioTracks && audioTrackNames != null)

@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Serilog;
 using System.Diagnostics;
 using ScreenLoop.Backend.Services;
@@ -66,7 +67,7 @@ namespace ScreenLoop.Backend.App
 
             try
             {
-                var jsonDoc = JsonDocument.Parse(message);
+                using var jsonDoc = JsonDocument.Parse(message);
                 var root = jsonDoc.RootElement;
 
                 if (root.TryGetProperty("Method", out JsonElement methodElement))
@@ -181,13 +182,21 @@ namespace ScreenLoop.Backend.App
                             root.TryGetProperty("Parameters", out JsonElement openInBrowserParameterElement);
                             if (openInBrowserParameterElement.TryGetProperty("Url", out JsonElement urlElement))
                             {
-                                string url = urlElement.GetString()!;
-                                Log.Information($"Opening URL in browser: {url}");
-                                Process.Start(new ProcessStartInfo
+                                string? url = urlElement.GetString();
+                                if (Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) &&
+                                    (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
                                 {
-                                    FileName = url,
-                                    UseShellExecute = true
-                                });
+                                    Log.Information($"Opening URL in browser: {uri}");
+                                    Process.Start(new ProcessStartInfo
+                                    {
+                                        FileName = uri.AbsoluteUri,
+                                        UseShellExecute = true
+                                    });
+                                }
+                                else
+                                {
+                                    Log.Warning($"Rejected invalid browser URL: {url}");
+                                }
                             }
                             else
                             {
@@ -814,7 +823,9 @@ namespace ScreenLoop.Backend.App
                 return;
 
             Log.Information("Sending settings to frontend ({Cause})", cause);
-            await SendFrontendMessage("Settings", Settings.Instance);
+            var frontendSettings = JsonSerializer.SerializeToNode(Settings.Instance, jsonOptions)?.AsObject();
+            frontendSettings?.Remove("auth");
+            await SendFrontendMessage("Settings", frontendSettings ?? new JsonObject());
         }
 
         public static async Task SendStateToFrontend(string cause)

@@ -156,26 +156,7 @@ namespace ScreenLoop.Backend.Core.Models
         public string ContentFolder
         {
             get => _contentFolder;
-            set
-            {
-                string normalized = Shared.PathUtils.Normalize(value);
-                bool hasChanged = Instance._contentFolder != normalized;
-
-                _contentFolder = normalized;
-                Instance._contentFolder = normalized;
-
-                if (hasChanged || AppState.Instance.Content.Count == 0)
-                {
-                    _ = Task.Run(async () =>
-                    {
-                        await SettingsService.LoadContentFromFolderIntoState();
-                        if (Instance != null && !Instance._isBulkUpdating)
-                        {
-                            SettingsService.SaveSettings();
-                        }
-                    });
-                }
-            }
+            set => _contentFolder = Shared.PathUtils.Normalize(value);
         }
 
         [JsonPropertyName("cacheFolder")]

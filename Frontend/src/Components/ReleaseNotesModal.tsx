@@ -1,9 +1,8 @@
 import { useContext, useEffect, useState } from 'react';
-import { gt } from 'semver';
+import { gt, valid } from 'semver';
 import Markdown from 'markdown-to-jsx';
 import { CircleCheck, X, Calendar } from 'lucide-react';
 import { GithubIcon } from './icons/BrandIcons';
-import { ReleaseNote } from '../Models/WebSocketMessages';
 import { ReleaseNotesContext } from '../App';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import Button from './Button';
@@ -251,13 +250,11 @@ function ReleaseSkeleton() {
 }
 
 export default function ReleaseNotesModal({ onClose, filterVersion }: ReleaseNotesModalProps) {
-  const [notes, setNotes] = useState<ReleaseNote[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { releaseNotes } = useContext(ReleaseNotesContext);
 
   useEffect(() => {
     if (releaseNotes.length > 0) {
-      setNotes(releaseNotes);
       setIsLoading(false);
     } else {
       const timer = setTimeout(() => setIsLoading(false), 2000);
@@ -265,9 +262,13 @@ export default function ReleaseNotesModal({ onClose, filterVersion }: ReleaseNot
     }
   }, [releaseNotes]);
 
-  const filteredNotes = filterVersion
-    ? notes.filter((note) => gt(note.version, filterVersion, { loose: true }))
-    : notes;
+  const validFilterVersion = filterVersion ? valid(filterVersion, { loose: true }) : null;
+  const filteredNotes = validFilterVersion
+    ? releaseNotes.filter((note) => {
+        const noteVersion = valid(note.version, { loose: true });
+        return noteVersion ? gt(noteVersion, validFilterVersion) : false;
+      })
+    : releaseNotes;
 
   const handleOpenGithubReleases = () => {
     sendMessageToBackend('OpenInBrowser', {
@@ -284,8 +285,8 @@ export default function ReleaseNotesModal({ onClose, filterVersion }: ReleaseNot
         <div className="min-w-0">
           <h2 className="font-bold text-2xl text-white leading-tight">What's New</h2>
           <p className="text-sm text-gray-400 mt-0.5">
-            {filterVersion
-              ? `Updates since v${filterVersion}`
+            {validFilterVersion
+              ? `Updates since v${validFilterVersion}`
               : 'Browse recent releases from ScreenLoop'}
           </p>
         </div>
@@ -304,10 +305,10 @@ export default function ReleaseNotesModal({ onClose, filterVersion }: ReleaseNot
               <CircleCheck size={30} />
             </div>
             <h3 className="text-lg font-semibold text-white mb-1">
-              {filterVersion ? "You're up to date!" : 'No release notes available'}
+              {validFilterVersion ? "You're up to date!" : 'No release notes available'}
             </h3>
             <p className="text-sm text-gray-400 max-w-sm">
-              {filterVersion
+              {validFilterVersion
                 ? 'You are on the latest version of ScreenLoop. Check back after the next release for new changes.'
                 : 'We could not find any release notes to display right now.'}
             </p>

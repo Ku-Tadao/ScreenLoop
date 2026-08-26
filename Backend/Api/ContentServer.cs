@@ -87,19 +87,26 @@ namespace ScreenLoop.Backend.Api
 
                 if (context.Request.HttpMethod == "OPTIONS")
                 {
-                    response.AddHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+                    response.AddHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
                     response.AddHeader("Access-Control-Allow-Headers", "Range");
                     response.StatusCode = (int)HttpStatusCode.NoContent;
                     return;
                 }
 
-                var rawUrl = context.Request.RawUrl ?? "";
+                if (context.Request.HttpMethod != "GET")
+                {
+                    response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+                    response.AddHeader("Allow", "GET, OPTIONS");
+                    return;
+                }
 
-                if (rawUrl.StartsWith("/api/thumbnail"))
+                string path = context.Request.Url?.AbsolutePath ?? "";
+
+                if (path.Equals("/api/thumbnail", StringComparison.OrdinalIgnoreCase))
                 {
                     await HandleThumbnailRequest(context);
                 }
-                else if (rawUrl.StartsWith("/api/content"))
+                else if (path.Equals("/api/content", StringComparison.OrdinalIgnoreCase))
                 {
                     await HandleContentRequest(context);
                 }
@@ -191,10 +198,13 @@ namespace ScreenLoop.Backend.Api
             }
             else
             {
-                if (!double.TryParse(timeParam, System.Globalization.NumberStyles.AllowDecimalPoint, System.Globalization.CultureInfo.InvariantCulture, out double timeSeconds))
+                if (!double.TryParse(timeParam, System.Globalization.NumberStyles.AllowDecimalPoint, System.Globalization.CultureInfo.InvariantCulture, out double timeSeconds) ||
+                    !double.IsFinite(timeSeconds) ||
+                    timeSeconds < 0)
                 {
-                    Log.Warning("Could not parse timeParam={TimeParam}, using 0.0", timeParam);
-                    timeSeconds = 0.0;
+                    Log.Warning("Rejected invalid thumbnail time {TimeParam}", timeParam);
+                    response.StatusCode = (int)HttpStatusCode.BadRequest;
+                    return;
                 }
 
                 if (!FFmpegService.FFmpegExists())

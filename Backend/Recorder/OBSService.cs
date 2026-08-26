@@ -1,6 +1,7 @@
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
+using NuGet.Versioning;
 using ObsKit.NET;
 using ObsKit.NET.Encoders;
 using ObsKit.NET.Native.Types;
@@ -19,6 +20,7 @@ using System.Text.RegularExpressions;
 using static ScreenLoop.Backend.Utils.GeneralUtils;
 using static ScreenLoop.Backend.App.MessageService;
 using System.Net.Http.Json;
+using System.Text.Json.Serialization;
 using ScreenLoop.Backend.Media;
 using ScreenLoop.Backend.App;
 using ScreenLoop.Backend.Windows.Display;
@@ -506,7 +508,7 @@ namespace ScreenLoop.Backend.Recorder
             _displayItem?.SetBounds(ObsBoundsType.ScaleInner, _currentBaseWidth, _currentBaseHeight).SetPosition(0, 0);
 
             // Set scene as program output
-            _mainScene.SetAsProgram();
+            Obs.SetOutputSource(_mainScene);
 
             // Create video encoder
             string encoderId = Settings.Instance.Codec!.InternalEncoderId;
@@ -1490,34 +1492,16 @@ namespace ScreenLoop.Backend.Recorder
         {
             try
             {
-                string url = "https://segra.tv/api/obs/versions";
-                List<Core.Models.OBSVersion>? response = null;
-
-                using (HttpClient client = new())
-                {
-                    try
-                    {
-                        response = await client.GetFromJsonAsync<List<Core.Models.OBSVersion>>(url);
-                        if (response != null)
-                        {
-                            Log.Information($"Available OBS versions: {string.Join(", ", response.Select(v => v.Version))}");
-                        }
-                        else
-                        {
-                            Log.Warning("Received null OBS versions list from API");
-                            response = new List<Core.Models.OBSVersion>();
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Error($"Error parsing OBS versions from API: {ex.Message}");
-                        response = new List<Core.Models.OBSVersion>();
-                    }
-                }
-
+                const string catalogUrl = "https://segra.tv/api/obs/versions";
+                using HttpClient client = new();
+                client.DefaultRequestHeaders.Add("User-Agent", "ScreenLoop");
+                var response = await client.GetFromJsonAsync<List<Core.Models.OBSVersion>>(catalogUrl) ?? [];
+                response = response
+                    .OrderByDescending(entry => NuGetVersion.TryParse(entry.Version, out var version) ? version : new NuGetVersion(0, 0, 0))
+                    .ToList();
                 if (response.Count > 0)
                 {
-                    Log.Information($"OBS runtime catalog versions for ScreenLoop: {string.Join(", ", response.Select(v => v.Version))}");
+                    Log.Information($"Available OBS versions: {string.Join(", ", response.Select(v => v.Version))}");
                 }
 
                 SettingsService.SetAvailableOBSVersions(response);
@@ -1589,7 +1573,6 @@ namespace ScreenLoop.Backend.Recorder
             {
                 versionToDownload = AppState.Instance.AvailableOBSVersions
                     .Where(v => !v.IsBeta)
-                    .OrderByDescending(v => v.Version)
                     .FirstOrDefault();
 
                 Log.Information($"Using latest stable OBS version: {versionToDownload?.Version}");
@@ -1599,30 +1582,22 @@ namespace ScreenLoop.Backend.Recorder
             if (versionToDownload != null)
             {
                 Log.Information($"Using OBS version: {versionToDownload.Version}");
-                string metadataUrl = versionToDownload.Url; // This is the GitHub metadata URL
+                string metadataUrl = versionToDownload.Url;
 
                 using (var httpClient = new HttpClient())
                 {
-                    // First, fetch the metadata from GitHub
                     httpClient.DefaultRequestHeaders.Add("User-Agent", "ScreenLoop");
-                    httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github.v3.json");
+                    httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
+                    httpClient.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
 
                     Log.Information($"Fetching metadata for OBS version {versionToDownload.Version} from {metadataUrl}");
-                    var response = await httpClient.GetAsync(metadataUrl);
+                    using var metadataResponse = await httpClient.GetAsync(metadataUrl);
+                    metadataResponse.EnsureSuccessStatusCode();
 
-                    if (!response.IsSuccessStatusCode)
+                    var metadata = await metadataResponse.Content.ReadFromJsonAsync<GitHubFileMetadata>();
+                    if (metadata == null || string.IsNullOrWhiteSpace(metadata.Sha) || string.IsNullOrWhiteSpace(metadata.DownloadUrl))
                     {
-                        Log.Error($"Failed to fetch metadata from {metadataUrl}. Status: {response.StatusCode}");
-                        throw new Exception($"Failed to fetch file metadata: {response.ReasonPhrase}");
-                    }
-
-                    var jsonResponse = await response.Content.ReadAsStringAsync();
-                    var metadata = System.Text.Json.JsonSerializer.Deserialize<GitHubFileMetadata>(jsonResponse);
-
-                    if (metadata?.DownloadUrl == null)
-                    {
-                        Log.Error("Download URL not found in the API response.");
-                        throw new Exception("Invalid API response: Missing download URL.");
+                        throw new InvalidDataException("OBS file metadata was incomplete.");
                     }
 
                     string remoteHash = metadata.Sha;
@@ -1733,11 +1708,11 @@ namespace ScreenLoop.Backend.Recorder
             AppState.Instance.HasLoadedObs = false;
         }
 
-        private class GitHubFileMetadata
+        private sealed class GitHubFileMetadata
         {
-            [System.Text.Json.Serialization.JsonPropertyName("sha")]
+            [JsonPropertyName("sha")]
             public required string Sha { get; set; }
-            [System.Text.Json.Serialization.JsonPropertyName("download_url")]
+            [JsonPropertyName("download_url")]
             public required string DownloadUrl { get; set; }
         }
 

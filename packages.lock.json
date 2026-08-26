@@ -4,11 +4,11 @@
     "net10.0-windows10.0.19041": {
       "Microsoft.Extensions.FileProviders.Embedded": {
         "type": "Direct",
-        "requested": "[10.0.8, )",
-        "resolved": "10.0.8",
-        "contentHash": "Wv9s0rmrmUEma268HCqqcHGgJI30O9mqMxnORZ/QFxtbjoTFEuMvnqL2kIfbZcOGD6XF6II47Hc6YSff0jKGkw==",
+        "requested": "[10.0.11, )",
+        "resolved": "10.0.11",
+        "contentHash": "x1wiStyE0RsviK1jdE7a6ua7jIhA0xPXOq5YMfWCWN7RJ9D4Q70oSD9ZVEzHBvovB+f1YQFdPU4036Act442Ow==",
         "dependencies": {
-          "Microsoft.Extensions.FileProviders.Abstractions": "10.0.8"
+          "Microsoft.Extensions.FileProviders.Abstractions": "10.0.11"
         }
       },
       "NAudio": {
@@ -27,15 +27,15 @@
       },
       "NuGet.Versioning": {
         "type": "Direct",
-        "requested": "[7.6.0, )",
-        "resolved": "7.6.0",
-        "contentHash": "TpZxfOoQBQk/0r/2uc1A1qNYIKHkJGgOrWP+ax3nsNAUN/1BOQMDrgmGADogSA4hOXH1ZJiyeYg4Ca+vUW0sEg=="
+        "requested": "[7.9.0, )",
+        "resolved": "7.9.0",
+        "contentHash": "r4sZuVpVqwSBLe4qYDrnpScqdyctlRXg0HSF5OoCGkeBc8b+o8BBYHuI/u1RoWYX78PbieijU13TBt71/Xf3lw=="
       },
       "ObsKit.NET": {
         "type": "Direct",
-        "requested": "[1.1.0, )",
-        "resolved": "1.1.0",
-        "contentHash": "A4XYWosjpcABF2yWx8fHF3lwaDMGCRuPzPe2+SQZx8mVj7IeXaAETmFTbGGw+GeFuHhIe9AjJe3t/hoeWJIN8Q=="
+        "requested": "[1.5.5, )",
+        "resolved": "1.5.5",
+        "contentHash": "E15XpVEngeTaL2+7J+SQZS1GR1bgPxZ0QuWZ4YvCLswpV5Mw1Eax2H6w4MBLrLyojHW72rhksdFcNdFjDilmsg=="
       },
       "Photino.NET": {
         "type": "Direct",
@@ -54,9 +54,9 @@
       },
       "Serilog": {
         "type": "Direct",
-        "requested": "[4.3.1, )",
-        "resolved": "4.3.1",
-        "contentHash": "savYe7h5yRlkqBVOwP8cIRDOdqKiPmYCU4W87JH38sBmcKD5EBoXvQIw6bNEvZ/pTe1gsiye3VFCzBsoppGkXQ=="
+        "requested": "[4.4.0, )",
+        "resolved": "4.4.0",
+        "contentHash": "ZC6Le3rr4TVJJjS4KsQAesxeF1EhW9qcZmmG7eP5Y2G3+gTGkJEUXkq4+tZNPtyp05I0wWOxnIjwtxFweJsObw=="
       },
       "Serilog.Sinks.Console": {
         "type": "Direct",
@@ -87,9 +87,9 @@
       },
       "System.Management": {
         "type": "Direct",
-        "requested": "[10.0.8, )",
-        "resolved": "10.0.8",
-        "contentHash": "8GgwcQgAv1Xg0z4vkJ759AJOFbZpK17cX9+21SOHo+KXS+VUhwSBeFSzjDJyyaEiJwgQ0D5sGnfpEs2hjyZrmA=="
+        "requested": "[10.0.11, )",
+        "resolved": "10.0.11",
+        "contentHash": "xyNn8KGbWI88LoUwg3rB8qcpFFST6dr8Ro/qS8GBu2GOwR0v7J82kVFHTiiPtvEKS79VbMTxs/sIKQ+Cq1Zs1g=="
       },
       "Velopack": {
         "type": "Direct",
@@ -110,16 +110,16 @@
       },
       "Microsoft.Extensions.FileProviders.Abstractions": {
         "type": "Transitive",
-        "resolved": "10.0.8",
-        "contentHash": "U+oquaPxFdY8lYeEIWO/AD7jDIl9sPW6aVWMQRHU/pZ/SWpLcOrAj2fcLe1HwXl4sYw1ONI56K/eELT3xr4RRQ==",
+        "resolved": "10.0.11",
+        "contentHash": "JOjac6SQQgZmdmB8WGEw61/7siqMZoWJMkmq2p1goJGxqI59lO6oB4bOl0jNsbaPBdYy5Mlkb+6U7T4+CjnD8Q==",
         "dependencies": {
-          "Microsoft.Extensions.Primitives": "10.0.8"
+          "Microsoft.Extensions.Primitives": "10.0.11"
         }
       },
       "Microsoft.Extensions.Primitives": {
         "type": "Transitive",
-        "resolved": "10.0.8",
-        "contentHash": "OBPo4nYhMyIbtueoC10CBm6AGAbo/A9IV8QQ/6ryZS7VvmqpGT7hunazeHLxFawRzn3oLOq4jhqhpBX4tfswWQ=="
+        "resolved": "10.0.11",
+        "contentHash": "SXcz+kF+4Oo9b1+55zntpJFYfwb1jw66ioxptyNOOTDc8g2FHnBFWjZpsWfCvZIhzr0x+4e2trVTs4OKwQfBtw=="
       },
       "NAudio.Asio": {
         "type": "Transitive",

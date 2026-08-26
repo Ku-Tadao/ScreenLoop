@@ -175,7 +175,7 @@ export default function StorageSettingsSection({
             id="media-folder"
             className="h-10 flex-1 rounded-lg border border-screen-line bg-screen-main px-3 text-screen-muted"
             value={settings.contentFolder}
-            onChange={(e) => updateSettings({ contentFolder: e.target.value })}
+            readOnly
           />
           <button
             type="button"
@@ -196,7 +196,7 @@ export default function StorageSettingsSection({
             id="cache-folder"
             className="h-10 flex-1 rounded-lg border border-screen-line bg-screen-main px-3 text-screen-muted"
             value={settings.cacheFolder}
-            onChange={(e) => updateSettings({ cacheFolder: e.target.value })}
+            readOnly
           />
           <button
             type="button"

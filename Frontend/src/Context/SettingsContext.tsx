@@ -37,6 +37,8 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
       if (!raw) return null;
       const cached = JSON.parse(raw);
+      delete cached.auth;
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(cached));
       return { ...initialSettings, ...cached };
     } catch {
       return null;
@@ -84,7 +86,9 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     const handleWebSocketMessage = (event: CustomEvent<any>) => {
       const data = event.detail;
       if (data.method === 'Settings') {
-        updateSettings(data.content, true);
+        const safeSettings = { ...data.content };
+        delete safeSettings.auth;
+        updateSettings(safeSettings, true);
       }
     };
 

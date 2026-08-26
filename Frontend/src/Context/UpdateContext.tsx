@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useCallback, useEffect } from 'react';
 import {
   isUpdateProgressMessage,
   isReleaseNotesMessage,
@@ -57,9 +57,19 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   */
 
   // Access the global release notes context
-  const globalReleaseNotes = useContext(ReleaseNotesContext);
+  const { setReleaseNotes: setGlobalReleaseNotes } = useContext(ReleaseNotesContext);
+
+  const openReleaseNotesModal = useCallback(
+    (filterVersion: string | null = __APP_VERSION__) => {
+      openModal(<ReleaseNotesModal onClose={closeModal} filterVersion={filterVersion} />, {
+        size: 'xl',
+      });
+    },
+    [closeModal, openModal],
+  );
 
   useEffect(() => {
+    let oldVersionTimer: ReturnType<typeof setTimeout> | undefined;
     const handleWebSocketMessage = (event: CustomEvent<any>) => {
       const message = event.detail;
 
@@ -72,7 +82,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
         if (message.content && message.content.releaseNotesList) {
           setReleaseNotes(message.content.releaseNotesList);
           // Also update the global release notes
-          globalReleaseNotes.setReleaseNotes(message.content.releaseNotesList);
+          setGlobalReleaseNotes(message.content.releaseNotesList);
         }
       }
 
@@ -89,15 +99,16 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     if (oldVersion) {
       localStorage.removeItem('oldAppVersion');
       // Small delay to ensure modal system is ready
-      setTimeout(() => {
+      oldVersionTimer = setTimeout(() => {
         openReleaseNotesModal(oldVersion);
       }, 1000);
     }
 
     return () => {
       window.removeEventListener('websocket-message', handleWebSocketMessage as EventListener);
+      if (oldVersionTimer) clearTimeout(oldVersionTimer);
     };
-  }, []);
+  }, [openReleaseNotesModal, setGlobalReleaseNotes]);
 
   const clearUpdateInfo = () => {
     setUpdateInfo(null);
@@ -106,12 +117,6 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
 
   const checkForUpdates = () => {
     sendMessageToBackend('CheckForUpdates');
-  };
-
-  const openReleaseNotesModal = (filterVersion: string | null = __APP_VERSION__) => {
-    openModal(<ReleaseNotesModal onClose={closeModal} filterVersion={filterVersion} />, {
-      size: 'xl',
-    });
   };
 
   return (

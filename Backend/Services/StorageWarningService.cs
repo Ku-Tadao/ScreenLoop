@@ -90,6 +90,9 @@ namespace ScreenLoop.Backend.Services
                         Log.Information($"User confirmed content folder change despite storage warning");
                         // Apply the content folder change
                         Settings.Instance.ContentFolder = newContentFolder;
+                        SettingsService.SaveSettings();
+                        await SettingsService.LoadContentFromFolderIntoState();
+                        await MessageService.SendSettingsToFrontend("Content folder changed");
                     }
                     else
                     {

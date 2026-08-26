@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { version } from './package.json';
+import packageJson from './package.json' with { type: 'json' };
 import tailwindcss from '@tailwindcss/vite';
 
 // https://vite.dev/config/
@@ -15,7 +15,7 @@ export default defineConfig({
     port: 2882,
   },
   define: {
-    __APP_VERSION__: JSON.stringify(version),
+    __APP_VERSION__: JSON.stringify(packageJson.version),
   },
   build: {
     // Add cache busting for assets with content hashing

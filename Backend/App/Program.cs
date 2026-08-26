@@ -215,7 +215,6 @@ namespace ScreenLoop.Backend.App
                 SettingsService.SaveSettings();
                 if (IsFirstRun)
                 {
-                    _ = SettingsService.LoadContentFromFolderIntoState(true);
                     StartupService.SetStartupStatus(true);
                     AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
                     if (AppState.Instance.GpuVendor == GeneralUtils.GpuVendor.Nvidia)
@@ -232,6 +231,7 @@ namespace ScreenLoop.Backend.App
                 {
                     Directory.CreateDirectory(Settings.Instance.ContentFolder);
                 }
+                _ = SettingsService.LoadContentFromFolderIntoState(true);
 
                 // Run data migrations
                 Task.Run(MigrationService.RunMigrations);

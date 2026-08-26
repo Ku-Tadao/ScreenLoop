@@ -7,7 +7,6 @@ A quick, practical guide to get you developing on both the backend (C#/.NET) and
 - .NET SDK 10.0.x (Windows targeting)
 - Git
 - Bun v1.1+ (for frontend tooling and git hooks)
-- Bun (used for the frontend toolchain and auto-started development server)
 - IDEs (pick what you like):
   - Visual Studio 2022 (17.12+) or VS Code + C# Dev Kit
 
@@ -34,7 +33,7 @@ There are two parts running during development: the backend (Photino.NET desktop
 - Using Bun (recommended):
   - `cd Frontend && bun run dev` (serves on http://localhost:2882)
 - Using Node/npm (optional):
-  - `cd Frontend && bun run dev`
+  - `cd Frontend && npm run dev`
 
 ### Start the Backend (.NET)
 - From the repo root:

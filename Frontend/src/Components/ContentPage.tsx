@@ -46,6 +46,17 @@ export default function ContentPage({
   const { isConnected } = useWebSocketContext();
   const containerRef = useRef<HTMLDivElement>(null);
   const isSettingScroll = useRef(false);
+  const initialScrollPosition = useRef(
+    sectionId === 'clips'
+      ? scrollPositions.clips
+      : sectionId === 'highlights'
+        ? scrollPositions.highlights
+        : sectionId === 'replayBuffer'
+          ? scrollPositions.replayBuffer
+          : sectionId === 'sessions'
+            ? scrollPositions.sessions
+            : 0,
+  );
 
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
@@ -133,10 +144,6 @@ export default function ContentPage({
     localStorage.setItem(`${sectionId}-sort`, JSON.stringify(option));
   };
 
-  const handlePlay = (video: Content) => {
-    setSelectedVideo(video);
-  };
-
   const handleCardClick = useCallback(
     (video: Content) => {
       if (isCtrlPressed) {
@@ -151,13 +158,13 @@ export default function ContentPage({
         });
       } else {
         if (selectedItems.size === 0) {
-          handlePlay(video);
+          setSelectedVideo(video);
         } else {
           setSelectedItems(new Set());
         }
       }
     },
-    [isCtrlPressed, selectedItems.size],
+    [isCtrlPressed, selectedItems.size, setSelectedVideo],
   );
 
   const handleDeleteSelected = useCallback(() => {
@@ -260,16 +267,7 @@ export default function ContentPage({
   }, [contentItems]);
 
   useLayoutEffect(() => {
-    const position =
-      sectionId === 'clips'
-        ? scrollPositions.clips
-        : sectionId === 'highlights'
-          ? scrollPositions.highlights
-          : sectionId === 'replayBuffer'
-            ? scrollPositions.replayBuffer
-            : sectionId === 'sessions'
-              ? scrollPositions.sessions
-              : 0;
+    const position = initialScrollPosition.current;
 
     if (containerRef.current && position > 0) {
       isSettingScroll.current = true;

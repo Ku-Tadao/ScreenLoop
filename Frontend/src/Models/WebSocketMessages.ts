@@ -69,11 +69,7 @@ export interface WebSocketMessage<T = any> {
 }
 
 export type WebSocketMessageType =
-  | 'importProgress'
-  | 'settings'
-  | 'UpdateProgress'
-  | 'ReleaseNotes'
-  | 'ShowModal';
+  'importProgress' | 'settings' | 'UpdateProgress' | 'ReleaseNotes' | 'ShowModal';
 
 export function isUpdateProgressMessage(message: WebSocketMessage<any>): boolean {
   return message.method === 'UpdateProgress';

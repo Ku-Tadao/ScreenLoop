@@ -119,20 +119,27 @@ namespace ScreenLoop.Backend.Windows.Storage
 
         private static long CalculateFolderSize(string folderPath)
         {
-            long size = 0;
-            string[] files = Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories);
+            if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
+                return 0;
 
-            foreach (string file in files)
+            long size = 0;
+            try
             {
-                FileInfo fileInfo = new FileInfo(file);
-                try
+                foreach (string file in Directory.EnumerateFiles(folderPath, "*", SearchOption.AllDirectories))
                 {
-                    size += fileInfo.Length;
+                    try
+                    {
+                        size += new FileInfo(file).Length;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning($"Error calculating size for file {PathUtils.Normalize(file)}: {ex.Message}");
+                    }
                 }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Error calculating size for file {PathUtils.Normalize(file)}: {ex.Message}");
-                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"Error enumerating files in {PathUtils.Normalize(folderPath)}: {ex.Message}");
             }
 
             return size;
@@ -142,7 +149,7 @@ namespace ScreenLoop.Backend.Windows.Storage
         {
             double spaceToFreeGB = (double)spaceToFreeBytes / BYTES_PER_GB;
 
-            // Do not delete files older than 1 hour since they are likely still in use
+            // Do not delete files newer than 1 hour since they are likely still in use
             DateTime oneHourAgo = DateTime.Now.AddHours(-1);
             await SettingsService.LoadContentFromFolderIntoState(false);
 

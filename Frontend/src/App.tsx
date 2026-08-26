@@ -93,7 +93,7 @@ function App() {
             </div>
           }
         >
-          <Video video={selectedVideo} />
+          <Video key={selectedVideo.filePath} video={selectedVideo} />
         </Suspense>
       );
     }
