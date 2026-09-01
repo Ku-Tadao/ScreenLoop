@@ -32,13 +32,20 @@ interface VideoCardProps {
   isSelectionMode?: boolean; // Whether multi-select mode is active
 }
 
+// Cached across cards: every card reads this during render, so parsing localStorage
+// per card per render was pure overhead on a full library grid.
+let viewedContentCache: Record<string, boolean> | null = null;
+
 const readViewedContent = (): Record<string, boolean> => {
+  if (viewedContentCache) return viewedContentCache;
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem('viewed-content') || '{}');
-    return parsed !== null && typeof parsed === 'object' ? (parsed as Record<string, boolean>) : {};
+    viewedContentCache =
+      parsed !== null && typeof parsed === 'object' ? (parsed as Record<string, boolean>) : {};
   } catch {
-    return {};
+    viewedContentCache = {};
   }
+  return viewedContentCache;
 };
 
 export default function ContentCard({
