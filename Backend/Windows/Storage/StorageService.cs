@@ -117,7 +117,7 @@ namespace ScreenLoop.Backend.Windows.Storage
             }
         }
 
-        private static long CalculateFolderSize(string folderPath)
+        public static long CalculateFolderSize(string folderPath)
         {
             if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
                 return 0;
@@ -183,7 +183,10 @@ namespace ScreenLoop.Backend.Windows.Storage
                 try
                 {
                     Log.Information($"Auto-manage deleting {candidate.Content.Type} file: {fileFullName} ({fileSizeMB:F2} MB)");
-                    await ContentService.DeleteContent(fileFullName, candidate.Content.Type);
+                    // Skip the per-file frontend push: DeleteContent re-reads every metadata
+                    // file on the disk each time, so a large cleanup would rescan the library
+                    // once per deleted file. One reload after the loop is enough.
+                    await ContentService.DeleteContent(fileFullName, candidate.Content.Type, sendToFrontend: false);
 
                     // DeleteContent reports user-facing errors internally, so verify the
                     // destructive operation before claiming space was reclaimed.
@@ -207,6 +210,11 @@ namespace ScreenLoop.Backend.Windows.Storage
 
             double totalFreedGB = (double)freedSpaceBytes / BYTES_PER_GB;
             Log.Information($"Storage cleanup completed: {deletedCount} files deleted, {totalFreedGB:F2} GB freed");
+
+            if (deletedCount > 0)
+            {
+                await SettingsService.LoadContentFromFolderIntoState(true);
+            }
 
             if (freedSpaceBytes < spaceToFreeBytes)
             {

@@ -16,7 +16,8 @@ namespace ScreenLoop.Backend.Core.Models
 
         public Keybind(List<int> keys, KeybindAction action, bool enabled = true)
         {
-            Keys = keys;
+            // Settings JSON is user-editable, so a keybind can arrive without a key list.
+            Keys = keys ?? new List<int>();
             Action = action;
             Enabled = enabled;
         }

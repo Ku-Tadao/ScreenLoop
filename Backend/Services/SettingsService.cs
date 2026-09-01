@@ -794,8 +794,13 @@ namespace ScreenLoop.Backend.Services
             }
 
             // Update Keybindings
-            if (updatedSettings.Keybindings != null)
+            // Compare before assigning: the frontend sends the full settings object on every
+            // change, so treating keybindings as always-changed would save settings, rebroadcast
+            // them, and re-register the global hotkeys on each unrelated update.
+            if (updatedSettings.Keybindings != null &&
+                !KeybindingsEqual(settings.Keybindings, updatedSettings.Keybindings))
             {
+                Log.Information("Keybindings changed");
                 settings.Keybindings = updatedSettings.Keybindings;
                 KeybindCaptureService.RefreshKeybindingsCache();
                 hasChanges = true;
@@ -826,6 +831,29 @@ namespace ScreenLoop.Backend.Services
                 settings._isBulkUpdating = false;
                 Log.Information("No settings changes detected");
             }
+        }
+
+        private static bool KeybindingsEqual(List<Keybind> current, List<Keybind> updated)
+        {
+            if (ReferenceEquals(current, updated)) return true;
+            if (current.Count != updated.Count) return false;
+
+            for (int i = 0; i < current.Count; i++)
+            {
+                Keybind a = current[i];
+                Keybind b = updated[i];
+                if (a.Action != b.Action || a.Enabled != b.Enabled) return false;
+
+                List<int> aKeys = a.Keys;
+                List<int> bKeys = b.Keys;
+                if (aKeys.Count != bKeys.Count) return false;
+                for (int k = 0; k < aKeys.Count; k++)
+                {
+                    if (aKeys[k] != bKeys[k]) return false;
+                }
+            }
+
+            return true;
         }
 
         public static async Task LoadContentFromFolderIntoState(bool sendToFrontend = true)
@@ -911,8 +939,6 @@ namespace ScreenLoop.Backend.Services
             {
                 Log.Error($"Error reading videos: {ex.Message}");
             }
-
-            await ContentService.ReconcileGameNamesByIgdb(content);
 
             AppState.Instance.SetContent(content, sendToFrontend);
 
@@ -1126,16 +1152,17 @@ namespace ScreenLoop.Backend.Services
                     // Create destination directory if it doesn't exist
                     Directory.CreateDirectory(destPath);
 
-                    // Move all files and subdirectories
+                    // Move all files and subdirectories. Paths are rebased on the relative
+                    // part so a folder name that repeats inside the tree cannot be rewritten.
                     foreach (var dir in Directory.GetDirectories(sourcePath, "*", SearchOption.AllDirectories))
                     {
-                        string targetDir = dir.Replace(sourcePath, destPath);
+                        string targetDir = Path.Combine(destPath, Path.GetRelativePath(sourcePath, dir));
                         Directory.CreateDirectory(targetDir);
                     }
 
                     foreach (var file in Directory.GetFiles(sourcePath, "*", SearchOption.AllDirectories))
                     {
-                        string targetFile = file.Replace(sourcePath, destPath);
+                        string targetFile = Path.Combine(destPath, Path.GetRelativePath(sourcePath, file));
                         if (File.Exists(targetFile))
                         {
                             Log.Warning("Cache migration kept existing destination file and left source untouched: {TargetFile}", targetFile);

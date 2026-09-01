@@ -241,6 +241,10 @@ namespace ScreenLoop.Backend.Windows.Display
             return maxHeight;
         }
 
+        // A WMI query costs tens to hundreds of milliseconds, and monitor names never change
+        // for a given PnP id, so resolve each id at most once per session.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _monitorNameCache = new(StringComparer.OrdinalIgnoreCase);
+
         private static string GetFriendlyMonitorName(string deviceId, string fallback)
         {
             // deviceId looks like:  \\?\DISPLAY#SAM6507#5&23dce28b&0&UID265988_0#
@@ -251,27 +255,45 @@ namespace ScreenLoop.Backend.Windows.Display
 
             string pnpId = match.Groups["pnpid"].Value;
 
-            // Ask WMI for a matching PnP entity and read its Name.
-            using var searcher = new ManagementObjectSearcher(
-                "SELECT Name,PNPDeviceID FROM Win32_PnPEntity " +
-                $"WHERE PNPDeviceID LIKE '%{pnpId}%'");
-
-            foreach (ManagementObject mo in searcher.Get())
+            if (_monitorNameCache.TryGetValue(pnpId, out string? cachedName))
             {
-                if (mo["Name"] is string name && !string.IsNullOrWhiteSpace(name))
-                {
-                    // Extract model name from inside parentheses if present
-                    // e.g. "Generic Monitor (Odyssey G60SD)" -> "Odyssey G60SD"
-                    var modelMatch = Regex.Match(name, @"\(([^\)]+)\)");
-                    if (modelMatch.Success)
-                    {
-                        return modelMatch.Groups[1].Value.Trim();
-                    }
-                    return name; // Return full name if no parentheses found
-                }
+                return cachedName;
             }
 
-            return fallback; // give up – use whatever the driver said
+            string resolved = QueryFriendlyMonitorName(pnpId) ?? fallback;
+            _monitorNameCache[pnpId] = resolved;
+            return resolved;
+        }
+
+        private static string? QueryFriendlyMonitorName(string pnpId)
+        {
+            try
+            {
+                // Ask WMI for a matching PnP entity and read its Name.
+                using var searcher = new ManagementObjectSearcher(
+                    "SELECT Name,PNPDeviceID FROM Win32_PnPEntity " +
+                    $"WHERE PNPDeviceID LIKE '%{pnpId}%'");
+
+                foreach (ManagementObject mo in searcher.Get())
+                {
+                    using (mo)
+                    {
+                        if (mo["Name"] is string name && !string.IsNullOrWhiteSpace(name))
+                        {
+                            // Extract model name from inside parentheses if present
+                            // e.g. "Generic Monitor (Odyssey G60SD)" -> "Odyssey G60SD"
+                            var modelMatch = Regex.Match(name, @"\(([^\)]+)\)");
+                            return modelMatch.Success ? modelMatch.Groups[1].Value.Trim() : name;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("Failed to resolve monitor name for {PnpId}: {Message}", pnpId, ex.Message);
+            }
+
+            return null; // give up – caller uses whatever the driver said
         }
     }
 }

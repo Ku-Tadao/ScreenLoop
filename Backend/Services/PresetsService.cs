@@ -31,7 +31,7 @@ namespace ScreenLoop.Backend.Services
 
             try
             {
-                switch (presetName.ToLower())
+                switch (presetName.ToLowerInvariant())
                 {
                     case "low":
                         settings.VideoQualityPreset = "low";
@@ -77,7 +77,10 @@ namespace ScreenLoop.Backend.Services
                         break;
 
                     default:
+                        // Leaving bulk-update mode set here would silently suppress every
+                        // later settings broadcast for the rest of the session.
                         Log.Warning($"Unknown video preset: {presetName}");
+                        settings._isBulkUpdating = false;
                         return;
                 }
 
@@ -104,7 +107,7 @@ namespace ScreenLoop.Backend.Services
 
             try
             {
-                switch (presetName.ToLower())
+                switch (presetName.ToLowerInvariant())
                 {
                     case "low":
                         settings.ClipQualityPreset = "low";
@@ -150,7 +153,9 @@ namespace ScreenLoop.Backend.Services
                         break;
 
                     default:
+                        // Same reasoning as ApplyVideoPreset: never leave bulk-update latched on.
                         Log.Warning($"Unknown clip preset: {presetName}");
+                        settings._isBulkUpdating = false;
                         return;
                 }
 

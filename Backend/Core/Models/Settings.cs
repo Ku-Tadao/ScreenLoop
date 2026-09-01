@@ -1176,21 +1176,22 @@ namespace ScreenLoop.Backend.Core.Models
         private string _jwt = string.Empty;
         private string _refreshToken = string.Empty;
 
+        // Both setters compare against their own backing field. Reading back through
+        // Settings.Instance would throw while the singleton is still being constructed,
+        // and it answers the wrong question once this instance is a deserialized copy.
         [JsonPropertyName("jwt")]
         public string Jwt
         {
             get => _jwt;
             set
             {
-                if (_jwt != value)
-                {
-                    bool hasChanged = !Settings.Instance.Auth.Jwt.Equals(value);
-                    _jwt = value;
+                if (_jwt == value)
+                    return;
 
-                    if (Settings.Instance != null && hasChanged && !Settings.Instance._isBulkUpdating)
-                    {
-                        SettingsService.SaveSettings();
-                    }
+                _jwt = value;
+                if (Settings.Instance != null && !Settings.Instance._isBulkUpdating)
+                {
+                    SettingsService.SaveSettings();
                 }
             }
         }
@@ -1201,14 +1202,13 @@ namespace ScreenLoop.Backend.Core.Models
             get => _refreshToken;
             set
             {
-                if (_refreshToken != value)
+                if (_refreshToken == value)
+                    return;
+
+                _refreshToken = value;
+                if (Settings.Instance != null && !Settings.Instance._isBulkUpdating)
                 {
-                    bool hasChanged = !Settings.Instance.Auth.RefreshToken.Equals(value);
-                    _refreshToken = value;
-                    if (Settings.Instance != null && hasChanged && !Settings.Instance._isBulkUpdating)
-                    {
-                        SettingsService.SaveSettings();
-                    }
+                    SettingsService.SaveSettings();
                 }
             }
         }

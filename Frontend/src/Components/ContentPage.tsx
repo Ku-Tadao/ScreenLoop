@@ -61,8 +61,14 @@ export default function ContentPage({
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
 
-  const visibleContentTypes = contentTypes ?? [contentType];
-  const contentItems = state.content.filter((video) => visibleContentTypes.includes(video.type));
+  // Keyed on a primitive so the filtered list keeps a stable identity across renders.
+  // Rebuilding it inline made every downstream useMemo (sorting, filtering, the selection
+  // reconciliation effect) recompute on every render.
+  const visibleTypesKey = (contentTypes ?? [contentType]).join(',');
+  const contentItems = useMemo(() => {
+    const types = visibleTypesKey.split(',') as ContentType[];
+    return state.content.filter((video) => types.includes(video.type));
+  }, [state.content, visibleTypesKey]);
   const [selectedGames, setSelectedGames] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(`${sectionId}-filters`);

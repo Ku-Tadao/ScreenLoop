@@ -482,7 +482,16 @@ export default function VideoComponent({ video }: { video: Content }) {
       // Only apply if this is the latest request for this segment
       if (thumbnailReqTokenRef.current.get(id) === nextToken) {
         const newest = segmentsRef.current.find((s) => s.id === id) ?? latest;
+        const previousUrl = newest.thumbnailDataUrl;
         updateSegment({ ...newest, thumbnailDataUrl: thumbnailUrl, isLoading: false });
+        // Each fetch mints a new blob URL. Dragging or resizing a segment refreshes its
+        // thumbnail, so without this the replaced blobs stay in memory for the session.
+        if (previousUrl?.startsWith('blob:')) {
+          URL.revokeObjectURL(previousUrl);
+        }
+      } else {
+        // A newer request already won; this blob would otherwise never be referenced.
+        URL.revokeObjectURL(thumbnailUrl);
       }
     } catch {
       if (thumbnailReqTokenRef.current.get(id) === nextToken) {
@@ -1653,9 +1662,7 @@ export default function VideoComponent({ video }: { video: Content }) {
                     className="text-white transition-colors cursor-pointer hover:text-accent"
                     aria-label={isMuted ? 'Unmute' : 'Mute'}
                   >
-                    {isMuted || volume === 0 ? (
-                      <VolumeX className="w-5 h-5" />
-                    ) : volume < 0.2 ? (
+                    {isMuted || volume < 0.2 ? (
                       <VolumeX className="w-5 h-5" />
                     ) : volume < 0.7 ? (
                       <Volume1 className="w-5 h-5" />

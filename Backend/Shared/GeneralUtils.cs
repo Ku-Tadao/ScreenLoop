@@ -145,58 +145,70 @@ namespace ScreenLoop.Backend.Utils
                     factory.CreateAdapterList<IDXCoreAdapterList>(filter);
 
                 var adapters = new List<IDXCoreAdapter>();
-                for (uint i = 0; i < list.AdapterCount; ++i)
+                try
                 {
-                    if (list.GetAdapter<IDXCoreAdapter>(i).DedicatedAdapterMemory > 0)
+                    for (uint i = 0; i < list.AdapterCount; ++i)
                     {
-                        adapters.Add(list.GetAdapter<IDXCoreAdapter>(i));
+                        // Fetch each adapter once: a second GetAdapter call would hand out
+                        // another COM reference that nothing disposes.
+                        var adapter = list.GetAdapter<IDXCoreAdapter>(i);
+                        if (adapter.DedicatedAdapterMemory > 0)
+                        {
+                            adapters.Add(adapter);
+                        }
+                        else
+                        {
+                            adapter.Dispose();
+                        }
+                    }
+
+                    foreach (var adapter in adapters)
+                    {
+                        Log.Information(adapter.DriverDescription);
+                        Log.Information($"  Vendor : 0x{adapter.HardwareID.VendorID:X4}");
+                        Log.Information($"  Device : 0x{adapter.HardwareID.DeviceID:X4}");
+                        Log.Information($"  VRAM   : {adapter.DedicatedAdapterMemory / (1024 * 1024)} MiB");
+                        Log.Information($"  Integrated: {adapter.IsIntegrated}");
+                    }
+
+                    // Sort adapters: non-integrated first, then by dedicated memory size (largest first)
+                    var sortedAdapters = adapters
+                        .OrderBy(a => a.IsIntegrated) // False comes before True
+                        .ThenByDescending(a => a.DedicatedAdapterMemory)
+                        .ToList();
+
+                    // Process the sorted adapters
+                    foreach (var adapter in sortedAdapters)
+                    {
+                        string name = adapter.DriverDescription;
+
+                        if (name.Contains("nvidia", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Log.Information($"Detected NVIDIA GPU: {name}");
+                            _cachedGpuVendor = GpuVendor.Nvidia;
+                            return GpuVendor.Nvidia;
+                        }
+                        else if (name.Contains("amd", StringComparison.OrdinalIgnoreCase) || name.Contains("radeon", StringComparison.OrdinalIgnoreCase) || name.Contains("ati", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Log.Information($"Detected AMD GPU: {name}");
+                            _cachedGpuVendor = GpuVendor.AMD;
+                            return GpuVendor.AMD;
+                        }
+                        else if (name.Contains("intel", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Log.Information($"Detected Intel GPU: {name}");
+                            _cachedGpuVendor = GpuVendor.Intel;
+                            return GpuVendor.Intel;
+                        }
                     }
                 }
-
-                foreach (var adapter in adapters)
+                finally
                 {
-                    Log.Information(adapter.DriverDescription);
-                    Log.Information($"  Vendor : 0x{adapter.HardwareID.VendorID:X4}");
-                    Log.Information($"  Device : 0x{adapter.HardwareID.DeviceID:X4}");
-                    Log.Information($"  VRAM   : {adapter.DedicatedAdapterMemory / (1024 * 1024)} MiB");
-                    Log.Information($"  Integrated: {adapter.IsIntegrated}");
-                }
-
-                // Sort adapters: non-integrated first, then by dedicated memory size (largest first)
-                var sortedAdapters = adapters
-                    .OrderBy(a => a.IsIntegrated) // False comes before True
-                    .ThenByDescending(a => a.DedicatedAdapterMemory)
-                    .ToList();
-
-                // Process the sorted adapters
-                foreach (var adapter in sortedAdapters)
-                {
-                    string name = adapter.DriverDescription;
-
-                    if (name.Contains("nvidia", StringComparison.OrdinalIgnoreCase))
+                    // Runs on the early returns above as well, so a detected adapter never leaks.
+                    foreach (var adapter in adapters)
                     {
-                        Log.Information($"Detected NVIDIA GPU: {name}");
-                        _cachedGpuVendor = GpuVendor.Nvidia;
-                        return GpuVendor.Nvidia;
+                        try { adapter.Dispose(); } catch { /* best effort */ }
                     }
-                    else if (name.Contains("amd", StringComparison.OrdinalIgnoreCase) || name.Contains("radeon", StringComparison.OrdinalIgnoreCase) || name.Contains("ati", StringComparison.OrdinalIgnoreCase))
-                    {
-                        Log.Information($"Detected AMD GPU: {name}");
-                        _cachedGpuVendor = GpuVendor.AMD;
-                        return GpuVendor.AMD;
-                    }
-                    else if (name.Contains("intel", StringComparison.OrdinalIgnoreCase))
-                    {
-                        Log.Information($"Detected Intel GPU: {name}");
-                        _cachedGpuVendor = GpuVendor.Intel;
-                        return GpuVendor.Intel;
-                    }
-                }
-
-                // Clean up adapters
-                foreach (var adapter in adapters)
-                {
-                    adapter.Dispose();
                 }
             }
             catch (Exception ex)
@@ -444,7 +456,7 @@ namespace ScreenLoop.Backend.Utils
                         }
                     }
                 }
-                catch (IOException ex)
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
                 {
                     Log.Warning($"File not ready yet (attempt {i + 1}/{maxRetries}): {ex.Message}");
                 }

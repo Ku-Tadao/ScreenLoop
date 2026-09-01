@@ -115,16 +115,18 @@ namespace ScreenLoop.Backend.Shared
         /// </summary>
         public static Content.ContentType? GetContentTypeFromPath(string path)
         {
-            string normalizedPath = path.Replace("\\", "/").ToLower();
+            // Invariant casing: folder names are fixed English strings, so a culture-specific
+            // lowercase mapping (Turkish dotless i) must not change the comparison.
+            string normalizedPath = path.Replace("\\", "/").ToLowerInvariant();
 
             // Check new folder names first
-            if (normalizedPath.Contains($"/{Sessions.ToLower()}/"))
+            if (normalizedPath.Contains($"/{Sessions.ToLowerInvariant()}/"))
                 return Content.ContentType.Session;
-            if (normalizedPath.Contains($"/{Buffers.ToLower()}/"))
+            if (normalizedPath.Contains($"/{Buffers.ToLowerInvariant()}/"))
                 return Content.ContentType.Buffer;
-            if (normalizedPath.Contains($"/{Clips.ToLower()}/"))
+            if (normalizedPath.Contains($"/{Clips.ToLowerInvariant()}/"))
                 return Content.ContentType.Clip;
-            if (normalizedPath.Contains($"/{Highlights.ToLower()}/"))
+            if (normalizedPath.Contains($"/{Highlights.ToLowerInvariant()}/"))
                 return Content.ContentType.Highlight;
 
             // Check legacy folder names for backwards compatibility

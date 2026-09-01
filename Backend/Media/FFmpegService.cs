@@ -117,6 +117,14 @@ namespace ScreenLoop.Backend.Media
     {
         private const string FFmpegExecutable = "ffmpeg.exe";
 
+        // Parsing progress runs once per stderr line, so keep the pattern compiled and shared.
+        private static readonly Regex ProgressTimeRegex = new(@"time=(\d+:\d+:\d+\.\d+)", RegexOptions.Compiled);
+
+        private static readonly TimeSpan DefaultHelperTimeout = TimeSpan.FromMinutes(2);
+        private static readonly TimeSpan MetadataTimeout = TimeSpan.FromSeconds(15);
+        // Decoding a long multi-track recording to PCM is not a quick helper call.
+        private static readonly TimeSpan PcmExtractionTimeout = TimeSpan.FromMinutes(30);
+
         /// <summary>
         /// Gets the path to the ffmpeg executable and verifies it exists
         /// </summary>
@@ -186,7 +194,7 @@ namespace ScreenLoop.Backend.Media
                         // Only try to parse time if we have total duration
                         if (totalDuration.HasValue)
                         {
-                            var timeMatch = Regex.Match(e.Data, @"time=(\d+:\d+:\d+\.\d+)");
+                            var timeMatch = ProgressTimeRegex.Match(e.Data);
                             if (timeMatch.Success)
                             {
                                 var ts = TimeSpan.Parse(timeMatch.Groups[1].Value, CultureInfo.InvariantCulture);
@@ -234,7 +242,7 @@ namespace ScreenLoop.Backend.Media
         /// <summary>
         /// Runs ffmpeg without progress tracking (simple execution)
         /// </summary>
-        public static async Task RunSimple(IEnumerable<string> arguments)
+        public static async Task RunSimple(IEnumerable<string> arguments, TimeSpan? timeout = null)
         {
             if (!FFmpegExists())
             {
@@ -275,7 +283,7 @@ namespace ScreenLoop.Backend.Media
                     process.BeginOutputReadLine();
                     process.BeginErrorReadLine();
 
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                    using var cts = new CancellationTokenSource(timeout ?? DefaultHelperTimeout);
                     try
                     {
                         await process.WaitForExitAsync(cts.Token);
@@ -330,12 +338,21 @@ namespace ScreenLoop.Backend.Media
                 ffmpegProcess.Start();
 
                 // Read streams concurrently to prevent deadlocks from full buffers, using BaseStream for raw binary
+                using var cts = new CancellationTokenSource(DefaultHelperTimeout);
                 using var ms = new MemoryStream();
-                var stdoutTask = ffmpegProcess.StandardOutput.BaseStream.CopyToAsync(ms);
-                var stderrTask = ffmpegProcess.StandardError.ReadToEndAsync();
+                var stdoutTask = ffmpegProcess.StandardOutput.BaseStream.CopyToAsync(ms, cts.Token);
+                var stderrTask = ffmpegProcess.StandardError.ReadToEndAsync(cts.Token);
 
-                await Task.WhenAll(stdoutTask, stderrTask);
-                await ffmpegProcess.WaitForExitAsync();
+                try
+                {
+                    await Task.WhenAll(stdoutTask, stderrTask);
+                    await ffmpegProcess.WaitForExitAsync(cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    try { ffmpegProcess.Kill(entireProcessTree: true); } catch { }
+                    throw new TimeoutException("FFmpeg process timed out.");
+                }
 
                 string ffmpegStdErr = stderrTask.Result;
 
@@ -376,7 +393,7 @@ namespace ScreenLoop.Backend.Media
             using var process = new Process { StartInfo = processStartInfo };
             process.Start();
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            using var cts = new CancellationTokenSource(MetadataTimeout);
             try
             {
                 string output = await process.StandardError.ReadToEndAsync(cts.Token);
@@ -385,7 +402,7 @@ namespace ScreenLoop.Backend.Media
             }
             catch (OperationCanceledException)
             {
-                try { process.Kill(); } catch { }
+                try { process.Kill(entireProcessTree: true); } catch { }
                 throw new TimeoutException($"FFmpeg metadata read timed out for: {inputFilePath}");
             }
         }
@@ -396,15 +413,15 @@ namespace ScreenLoop.Backend.Media
         public static TimeSpan ExtractDuration(string ffmpegOutput)
         {
             const string durationKeyword = "Duration: ";
-            int startIndex = ffmpegOutput.IndexOf(durationKeyword);
+            int startIndex = ffmpegOutput.IndexOf(durationKeyword, StringComparison.Ordinal);
             if (startIndex != -1)
             {
                 startIndex += durationKeyword.Length;
-                int endIndex = ffmpegOutput.IndexOf(",", startIndex);
+                int endIndex = ffmpegOutput.IndexOf(',', startIndex);
                 if (endIndex != -1)
                 {
                     string durationString = ffmpegOutput.Substring(startIndex, endIndex - startIndex).Trim();
-                    if (TimeSpan.TryParse(durationString, out var duration))
+                    if (TimeSpan.TryParse(durationString, CultureInfo.InvariantCulture, out var duration))
                     {
                         return duration;
                     }
@@ -618,7 +635,7 @@ namespace ScreenLoop.Backend.Media
                 outputPcmPath
             });
 
-            await RunSimple(args);
+            await RunSimple(args, PcmExtractionTimeout);
         }
     }
 }

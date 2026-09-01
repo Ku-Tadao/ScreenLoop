@@ -50,7 +50,7 @@ namespace ScreenLoop.Backend.Media
 
                     qualityArgs = $"-crf {Settings.Instance.ClipQualityCpu}";
                     presetArgs = videoCodec.Equals("libsvtav1", StringComparison.OrdinalIgnoreCase)
-                        ? $"-preset {MapSvtAv1Preset(Settings.Instance.ClipPreset)}"
+                        ? $"-preset {EncodingArgs.MapSvtAv1Preset(Settings.Instance.ClipPreset)}"
                         : $"-preset {Settings.Instance.ClipPreset}";
                 }
                 else
@@ -60,9 +60,9 @@ namespace ScreenLoop.Backend.Media
                     presetArgs = "-preset veryfast";
                 }
 
-                string scaleFilter = GetClipScaleFilter(Settings.Instance.ClipResolution);
+                string scaleFilter = EncodingArgs.GetScaleFilter(Settings.Instance.ClipResolution);
                 string videoFilterArgs = string.IsNullOrWhiteSpace(scaleFilter) ? "" : $"-vf {scaleFilter} ";
-                string audioCodecArgs = GetAudioCodecArgs();
+                string audioCodecArgs = EncodingArgs.GetAudioCodecArgs(Settings.Instance);
                 string arguments = $"-y -i \"{filePath}\" {videoFilterArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {audioCodecArgs} -movflags +faststart \"{tempOutputPath}\"";
 
                 await FFmpegService.RunWithProgress(processId, arguments, duration, (progress) =>
@@ -173,53 +173,5 @@ namespace ScreenLoop.Backend.Media
             return outputPath;
         }
 
-        private static int MapSvtAv1Preset(string preset)
-        {
-            return preset.ToLowerInvariant() switch
-            {
-                "svt-4" => 4,
-                "svt-5" => 5,
-                "svt-6" => 6,
-                "svt-7" => 7,
-                "svt-8" => 8,
-                "svt-9" => 9,
-                "svt-10" => 10,
-                "svt-11" => 11,
-                "svt-12" => 12,
-                "svt-13" => 13,
-                "veryslow" => 2,
-                "slower" => 3,
-                "slow" => 4,
-                "medium" => 6,
-                "fast" => 8,
-                "faster" => 9,
-                "veryfast" => 10,
-                "superfast" => 11,
-                "ultrafast" => 12,
-                _ => 8
-            };
-        }
-
-        private static string GetAudioCodecArgs()
-        {
-            string codec = Settings.Instance.ClipAudioCodec.Equals("opus", StringComparison.OrdinalIgnoreCase)
-                ? "libopus"
-                : "aac";
-
-            return $"-c:a {codec} -b:a {Settings.Instance.ClipAudioQuality}";
-        }
-
-        private static string GetClipScaleFilter(string clipResolution)
-        {
-            return clipResolution.ToLowerInvariant() switch
-            {
-                "480p" => "scale=-2:480",
-                "720p" => "scale=-2:720",
-                "1080p" => "scale=-2:1080",
-                "1440p" => "scale=-2:1440",
-                "4k" => "scale=-2:2160",
-                _ => ""
-            };
-        }
     }
 }

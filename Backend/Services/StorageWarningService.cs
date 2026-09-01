@@ -123,7 +123,7 @@ namespace ScreenLoop.Backend.Services
                     return true;
                 }
 
-                long newFolderSizeBytes = CalculateFolderSize(newContentFolder);
+                long newFolderSizeBytes = StorageService.CalculateFolderSize(newContentFolder);
                 double newFolderSizeGb = (double)newFolderSizeBytes / StorageService.BYTES_PER_GB;
                 int storageLimitGb = Settings.Instance.StorageLimit;
 
@@ -227,30 +227,5 @@ namespace ScreenLoop.Backend.Services
             }
         }
 
-        private static long CalculateFolderSize(string folderPath)
-        {
-            long size = 0;
-            try
-            {
-                string[] files = Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories);
-                foreach (string file in files)
-                {
-                    try
-                    {
-                        FileInfo fileInfo = new FileInfo(file);
-                        size += fileInfo.Length;
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warning($"Error calculating size for file {file}: {ex.Message}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Warning($"Error enumerating files in folder {folderPath}: {ex.Message}");
-            }
-            return size;
-        }
     }
 }

@@ -189,7 +189,9 @@ export default function MenuCustomizationSection({
   updateSettings,
 }: MenuCustomizationSectionProps) {
   const appState = useAppState();
-  const defaultItem = settings.defaultMenuItem ?? 'Full Sessions';
+  // Matches the backend fallback: 'Full Sessions' is not a customizable menu item, so
+  // showing it as the default here would never round-trip.
+  const defaultItem = settings.defaultMenuItem ?? 'Replay Buffer';
 
   const sourceItems: MenuItemPreference[] =
     settings.menuItems && settings.menuItems.length > 0 ? settings.menuItems : DEFAULT_MENU_ITEMS;

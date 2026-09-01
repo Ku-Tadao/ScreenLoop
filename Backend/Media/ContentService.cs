@@ -4,6 +4,8 @@ using ScreenLoop.Backend.Services;
 using ScreenLoop.Backend.Shared;
 using ScreenLoop.Backend.Windows.Storage;
 using Serilog;
+using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace ScreenLoop.Backend.Media
@@ -110,23 +112,6 @@ namespace ScreenLoop.Backend.Media
             }
         }
 
-        public static async Task SyncContentGameNamesByIgdb()
-        {
-            var list = AppState.Instance.Content;
-            if (list == null || list.Count == 0) return;
-
-            int changed = await ReconcileGameNamesByIgdb(list);
-            if (changed > 0)
-            {
-                AppState.Instance.SetContent(list, sendToFrontend: true);
-            }
-        }
-
-        public static async Task<int> ReconcileGameNamesByIgdb(List<Content> contents)
-        {
-            return await Task.FromResult(0);
-        }
-
         public static async Task CreateThumbnail(string filePath, Content.ContentType type)
         {
             try
@@ -229,29 +214,7 @@ namespace ScreenLoop.Backend.Media
                 int columns = Math.Max(1, (int)Math.Round((totalSamples / (double)sampleRate) * columnsPerSecond));
                 int samplesPerPixel = Math.Max(1, (int)Math.Ceiling(totalSamples / (double)columns));
 
-                var data = new List<int>(columns * 2);
-
-                for (int i = 0; i < totalSamples; i += samplesPerPixel)
-                {
-                    int end = Math.Min(totalSamples, i + samplesPerPixel);
-                    short min16 = short.MaxValue;
-                    short max16 = short.MinValue;
-                    for (int s = i; s < end; s++)
-                    {
-                        int byteIndex = s * 2;
-                        short sample = BitConverter.ToInt16(pcmBytes, byteIndex);
-                        if (sample < min16) min16 = sample;
-                        if (sample > max16) max16 = sample;
-                    }
-                    // Scale 16-bit PCM to 8-bit range approximately -128..127
-                    int min8 = (int)Math.Round(min16 / 256.0);
-                    int max8 = (int)Math.Round(max16 / 256.0);
-                    // Clamp to [-128,127]
-                    min8 = Math.Max(-128, Math.Min(127, min8));
-                    max8 = Math.Max(-128, Math.Min(127, max8));
-                    data.Add(min8);
-                    data.Add(max8);
-                }
+                List<int> data = ComputePeaks(pcmBytes, totalSamples, samplesPerPixel, columns);
 
                 var wrapper = new
                 {
@@ -278,6 +241,39 @@ namespace ScreenLoop.Backend.Media
                 try { if (tempPcmPath != null) File.Delete(tempPcmPath); } catch { }
                 try { if (waveformJsonPathTemp != null) File.Delete(waveformJsonPathTemp); } catch { }
             }
+        }
+
+        /// <summary>
+        /// Reduces raw 16-bit mono PCM to min/max pairs per waveform column, scaled to 8-bit.
+        /// Kept out of the async method so the sample span can be reinterpreted in place.
+        /// </summary>
+        private static List<int> ComputePeaks(byte[] pcmBytes, int totalSamples, int samplesPerPixel, int columns)
+        {
+            var data = new List<int>(columns * 2);
+            ReadOnlySpan<short> samples = MemoryMarshal.Cast<byte, short>(pcmBytes.AsSpan(0, totalSamples * 2));
+
+            for (int i = 0; i < totalSamples; i += samplesPerPixel)
+            {
+                int end = Math.Min(totalSamples, i + samplesPerPixel);
+                short min16 = short.MaxValue;
+                short max16 = short.MinValue;
+                for (int s = i; s < end; s++)
+                {
+                    short sample = samples[s];
+                    if (sample < min16) min16 = sample;
+                    if (sample > max16) max16 = sample;
+                }
+                // Scale 16-bit PCM to 8-bit range approximately -128..127
+                int min8 = (int)Math.Round(min16 / 256.0);
+                int max8 = (int)Math.Round(max16 / 256.0);
+                // Clamp to [-128,127]
+                min8 = Math.Max(-128, Math.Min(127, min8));
+                max8 = Math.Max(-128, Math.Min(127, max8));
+                data.Add(min8);
+                data.Add(max8);
+            }
+
+            return data;
         }
 
         public static async Task<TimeSpan> GetVideoDurationAsync(string videoFilePath)
@@ -557,11 +553,17 @@ namespace ScreenLoop.Backend.Media
                     string metadataFilePath = PathUtils.Combine(metadataFolderPath, $"{contentFileName}.json");
 
                     // Create a new bookmark
+                    if (!TimeSpan.TryParse(timeString, CultureInfo.InvariantCulture, out TimeSpan bookmarkTime))
+                    {
+                        Log.Error($"Invalid bookmark time '{timeString}' in AddBookmark message");
+                        return;
+                    }
+
                     var bookmark = new Bookmark
                     {
                         Id = bookmarkId,
                         Type = bookmarkType,
-                        Time = TimeSpan.Parse(timeString)
+                        Time = bookmarkTime
                     };
 
                     // Update the metadata file

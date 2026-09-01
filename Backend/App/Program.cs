@@ -11,7 +11,6 @@ using ScreenLoop.Backend.Windows.Storage;
 using Serilog;
 using System.Diagnostics;
 using System.IO.Pipes;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using Velopack;
 
@@ -115,9 +114,6 @@ namespace ScreenLoop.Backend.App
             }
 
             ConfigureLogging();
-
-            // Get the current version
-            var currentVersion = Assembly.GetExecutingAssembly().GetName().Version;
 
             VelopackApp.Build()
                 .OnBeforeUpdateFastCallback((v) =>
@@ -371,10 +367,13 @@ namespace ScreenLoop.Backend.App
                     return;
 
                 var lines = File.ReadAllLines(logFilePath).ToList();
-                var avgLineSize = fileInfo.Length / lines.Count;
+                if (lines.Count == 0)
+                    return;
+
+                var avgLineSize = Math.Max(1, fileInfo.Length / lines.Count);
                 var linesToKeep = (int)(trimTargetBytes / avgLineSize);
 
-                if (linesToKeep < lines.Count)
+                if (linesToKeep > 0 && linesToKeep < lines.Count)
                 {
                     var recentLines = lines.Skip(lines.Count - linesToKeep).ToList();
                     File.WriteAllLines(logFilePath, recentLines);

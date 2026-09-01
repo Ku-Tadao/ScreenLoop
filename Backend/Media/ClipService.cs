@@ -167,7 +167,9 @@ namespace ScreenLoop.Backend.Media
                 else
                 {
                     concatFilePath = PathUtils.Combine(Path.GetTempPath(), $"concat_list_{Guid.NewGuid()}.txt");
-                    await File.WriteAllLinesAsync(concatFilePath, tempClipFiles.Select(f => $"file '{f.Replace("\\", "\\\\").Replace("'", "\\'")}"));
+                    // The concat demuxer needs each entry quoted and terminated; a missing
+                    // closing quote makes ffmpeg reject the whole list.
+                    await File.WriteAllLinesAsync(concatFilePath, tempClipFiles.Select(f => $"file '{f.Replace("\\", "\\\\").Replace("'", "\\'")}'"));
 
                     try
                     {
@@ -268,42 +270,6 @@ namespace ScreenLoop.Backend.Media
             }
         }
 
-        private static int MapSvtAv1Preset(string preset)
-        {
-            return preset.ToLowerInvariant() switch
-            {
-                "svt-4" => 4,
-                "svt-5" => 5,
-                "svt-6" => 6,
-                "svt-7" => 7,
-                "svt-8" => 8,
-                "svt-9" => 9,
-                "svt-10" => 10,
-                "svt-11" => 11,
-                "svt-12" => 12,
-                "svt-13" => 13,
-                "veryslow" => 2,
-                "slower" => 3,
-                "slow" => 4,
-                "medium" => 6,
-                "fast" => 8,
-                "faster" => 9,
-                "veryfast" => 10,
-                "superfast" => 11,
-                "ultrafast" => 12,
-                _ => 8
-            };
-        }
-
-        private static string GetAudioCodecArgs(Settings settings)
-        {
-            string codec = settings.ClipAudioCodec.Equals("opus", StringComparison.OrdinalIgnoreCase)
-                ? "libopus"
-                : "aac";
-
-            return $"-c:a {codec} -b:a {settings.ClipAudioQuality}";
-        }
-
         private static bool UseClipTargetBitrate(Settings settings)
         {
             return settings.ClipVideoBitrate > 0;
@@ -316,19 +282,6 @@ namespace ScreenLoop.Backend.Media
 
             int kbps = Math.Clamp(settings.ClipVideoBitrate, 100, 100000);
             return $"-b:v {kbps}k";
-        }
-
-        private static string GetClipScaleFilter(string clipResolution)
-        {
-            return clipResolution.ToLowerInvariant() switch
-            {
-                "480p" => "scale=-2:480",
-                "720p" => "scale=-2:720",
-                "1080p" => "scale=-2:1080",
-                "1440p" => "scale=-2:1440",
-                "4k" => "scale=-2:2160",
-                _ => ""
-            };
         }
 
         private static async Task ExtractClip(int clipId, string inputFilePath, string outputFilePath, double startTime, double endTime,
@@ -411,7 +364,7 @@ namespace ScreenLoop.Backend.Media
 
                 qualityArgs = useTargetBitrate ? "" : $"-crf {settings.ClipQualityCpu}";
                 presetArgs = videoCodec.Equals("libsvtav1", StringComparison.OrdinalIgnoreCase)
-                    ? $"-preset {MapSvtAv1Preset(settings.ClipPreset)}"
+                    ? $"-preset {EncodingArgs.MapSvtAv1Preset(settings.ClipPreset)}"
                     : $"-preset {settings.ClipPreset}";
             }
 
@@ -637,7 +590,7 @@ namespace ScreenLoop.Backend.Media
             }
 
             string verboseFlag = filterArgs.Length > 0 || extraInputArgs.Length > 0 ? "-v verbose " : "";
-            string scaleFilter = GetClipScaleFilter(settings.ClipResolution);
+            string scaleFilter = EncodingArgs.GetScaleFilter(settings.ClipResolution);
             string videoFilterArgs = "";
 
             if (!string.IsNullOrWhiteSpace(scaleFilter))
@@ -667,7 +620,7 @@ namespace ScreenLoop.Backend.Media
             // The concat demuxer then uses the first clip's stream params for subsequent clips, playing
             // mismatched samples at the wrong rate (the reported "shrunken audio").
             string audioRateArg = targetAudioLayout != null ? "-ar 48000 " : "";
-            string audioCodecArgs = GetAudioCodecArgs(settings);
+            string audioCodecArgs = EncodingArgs.GetAudioCodecArgs(settings);
             string arguments = $"-y {verboseFlag}-ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
                              $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {bitrateArgs} {fpsArg} " +
                              $"{videoFilterArgs}{audioCodecArgs} {audioRateArg}{metadataArgs}-t {duration.ToString(CultureInfo.InvariantCulture)} -movflags +faststart \"{outputFilePath}\"";
@@ -702,7 +655,9 @@ namespace ScreenLoop.Backend.Media
         }
 
 
-        public static async void CancelClip(int clipId)
+        // Returns a Task rather than being async void so a failure inside surfaces to the
+        // caller instead of crashing the process as an unobserved exception.
+        public static async Task CancelClip(int clipId)
         {
             Log.Information($"[Clip {clipId}] Cancel requested");
 

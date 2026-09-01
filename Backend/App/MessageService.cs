@@ -36,6 +36,7 @@ namespace ScreenLoop.Backend.App
         private static string? trustedOrigin;
         private static int stateSendRunning;
         private static int stateSendPending;
+        private static int orphanScanStarted;
         private static readonly JsonSerializerOptions jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -105,7 +106,7 @@ namespace ScreenLoop.Backend.App
                             if (root.TryGetProperty("Parameters", out var cancelClipParams) &&
                                 cancelClipParams.TryGetProperty("id", out var clipId))
                             {
-                                ClipService.CancelClip(clipId.GetInt32());
+                                await ClipService.CancelClip(clipId.GetInt32());
                             }
                             break;
                         case "CreateClip":
@@ -231,6 +232,17 @@ namespace ScreenLoop.Backend.App
                         case "StopRecording":
                             _ = Task.Run(OBSService.StopRecording);
                             break;
+                        case "SaveReplayBuffer":
+                            // The Save Replay button in the UI sends this; without a handler it
+                            // fell through to "Unknown method" and did nothing.
+                            if (AppState.Instance.Recording == null)
+                            {
+                                Log.Information("SaveReplayBuffer ignored because no recording is active.");
+                                break;
+                            }
+
+                            _ = Task.Run(OBSService.SaveReplayBuffer);
+                            break;
                         case "NewConnection":
                             Log.Information("NewConnection command received.");
                             await SendSettingsToFrontend("New connection");
@@ -249,6 +261,20 @@ namespace ScreenLoop.Backend.App
                             }
 
                             _ = Task.Run(UpdateService.GetReleaseNotes);
+
+                            // Report a media-server startup failure now that there is a UI to show it in.
+                            if (Api.ContentServer.StartupError != null)
+                            {
+                                await ShowModal("Local server unavailable", Api.ContentServer.StartupError, "error");
+                            }
+
+                            // Scan for recordings whose metadata went missing. This runs on the
+                            // first connection rather than at startup so the prompt is not sent
+                            // before a frontend exists to receive it.
+                            if (Interlocked.Exchange(ref orphanScanStarted, 1) == 0)
+                            {
+                                _ = Task.Run(RecoveryService.CheckForOrphanedFilesAsync);
+                            }
                             break;
                         case "SetVideoLocation":
                             await SetVideoLocationAsync();
@@ -728,7 +754,6 @@ namespace ScreenLoop.Backend.App
                     else
                     {
                         string receivedMessage = Encoding.UTF8.GetString(messageBuffer.GetBuffer(), 0, checked((int)messageBuffer.Length));
-                        Log.Information($"Received message: {receivedMessage}");
                         if (receivedMessage == "ping")
                         {
                             await SendRawMessage(webSocket, "pong");
@@ -881,223 +906,6 @@ namespace ScreenLoop.Backend.App
 
             return Uri.TryCreate(origin, UriKind.Absolute, out var uri) &&
                    string.Equals(uri.GetLeftPart(UriPartial.Authority), trustedOrigin, StringComparison.OrdinalIgnoreCase);
-        }
-
-        public static async Task SendGameList()
-        {
-            await SendFrontendMessage("GameList", new List<object>());
-        }
-
-        private static async Task HandleAddToWhitelist(JsonElement parameters)
-        {
-            try
-            {
-                if (parameters.TryGetProperty("game", out JsonElement gameElement))
-                {
-                    var game = JsonSerializer.Deserialize<Game>(gameElement.GetRawText());
-                    if (game != null && !string.IsNullOrEmpty(game.Name) && game.Paths.Count > 0)
-                    {
-                        var comparer = new GameEqualityComparer();
-                        bool exists = Settings.Instance.Whitelist.Any(g => comparer.Equals(g, game));
-
-                        if (!exists)
-                        {
-                            var whitelist = new List<Game>(Settings.Instance.Whitelist);
-                            whitelist.Add(game);
-                            Settings.Instance.Whitelist = whitelist;
-                            Log.Information($"Added game {game.Name} to whitelist");
-                        }
-                        else
-                        {
-                            Log.Information($"Game {game.Name} already exists in whitelist");
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error adding to whitelist: {ex.Message}");
-                await ShowModal("Error", $"Failed to add game to whitelist: {ex.Message}", "error");
-            }
-        }
-
-        private static async Task HandleRemoveFromWhitelist(JsonElement parameters)
-        {
-            try
-            {
-                if (parameters.TryGetProperty("game", out JsonElement gameElement))
-                {
-                    var game = JsonSerializer.Deserialize<Game>(gameElement.GetRawText());
-                    if (game != null && !string.IsNullOrEmpty(game.Name) && game.Paths.Count > 0)
-                    {
-                        var comparer = new GameEqualityComparer();
-                        var existingGame = Settings.Instance.Whitelist.FirstOrDefault(g => comparer.Equals(g, game));
-
-                        if (existingGame != null)
-                        {
-                            var whitelist = new List<Game>(Settings.Instance.Whitelist);
-                            whitelist.Remove(existingGame);
-                            Settings.Instance.Whitelist = whitelist;
-                            Log.Information($"Removed game {game.Name} from whitelist");
-                        }
-                        else
-                        {
-                            Log.Information($"Game {game.Name} does not exist in whitelist");
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error removing from whitelist: {ex.Message}");
-                await ShowModal("Error", $"Failed to remove game from whitelist: {ex.Message}", "error");
-            }
-        }
-
-        private static async Task HandleAddToBlacklist(JsonElement parameters)
-        {
-            try
-            {
-                if (parameters.TryGetProperty("game", out JsonElement gameElement))
-                {
-                    var game = JsonSerializer.Deserialize<Game>(gameElement.GetRawText());
-                    if (game != null && !string.IsNullOrEmpty(game.Name) && game.Paths.Count > 0)
-                    {
-                        var comparer = new GameEqualityComparer();
-                        bool exists = Settings.Instance.Blacklist.Any(g => comparer.Equals(g, game));
-
-                        if (!exists)
-                        {
-                            var blacklist = new List<Game>(Settings.Instance.Blacklist);
-                            blacklist.Add(game);
-                            Settings.Instance.Blacklist = blacklist;
-                            Log.Information($"Added game {game.Name} to blacklist");
-                        }
-                        else
-                        {
-                            Log.Information($"Game {game.Name} already exists in blacklist");
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error adding to blacklist: {ex.Message}");
-                await ShowModal("Error", $"Failed to add game to blacklist: {ex.Message}", "error");
-            }
-        }
-
-        private static async Task HandleRemoveFromBlacklist(JsonElement parameters)
-        {
-            try
-            {
-                if (parameters.TryGetProperty("game", out JsonElement gameElement))
-                {
-                    var game = JsonSerializer.Deserialize<Game>(gameElement.GetRawText());
-                    if (game != null && !string.IsNullOrEmpty(game.Name) && game.Paths.Count > 0)
-                    {
-                        var comparer = new GameEqualityComparer();
-                        var existingGame = Settings.Instance.Blacklist.FirstOrDefault(g => comparer.Equals(g, game));
-
-                        if (existingGame != null)
-                        {
-                            var blacklist = new List<Game>(Settings.Instance.Blacklist);
-                            blacklist.Remove(existingGame);
-                            Settings.Instance.Blacklist = blacklist;
-                            Log.Information($"Removed game {game.Name} from blacklist");
-                        }
-                        else
-                        {
-                            Log.Information($"Game {game.Name} does not exist in blacklist");
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error removing from blacklist: {ex.Message}");
-                await ShowModal("Error", $"Failed to remove game from blacklist: {ex.Message}", "error");
-            }
-        }
-
-        private static async Task HandleMoveGame(JsonElement parameters)
-        {
-            Settings.Instance._isBulkUpdating = true;
-            try
-            {
-                if (parameters.TryGetProperty("game", out JsonElement gameElement) &&
-                    parameters.TryGetProperty("targetList", out JsonElement targetListElement))
-                {
-                    var game = JsonSerializer.Deserialize<Game>(gameElement.GetRawText());
-                    var targetList = targetListElement.GetString();
-
-                    if (game != null && !string.IsNullOrEmpty(game.Name) && game.Paths.Count > 0 &&
-                        (targetList == "whitelist" || targetList == "blacklist"))
-                    {
-                        var comparer = new GameEqualityComparer();
-                        bool isMovingToWhitelist = targetList == "whitelist";
-
-                        // Remove from source list
-                        if (isMovingToWhitelist)
-                        {
-                            // Moving to whitelist, remove from blacklist
-                            var existingGame = Settings.Instance.Blacklist.FirstOrDefault(g => comparer.Equals(g, game));
-                            if (existingGame != null)
-                            {
-                                var blacklist = new List<Game>(Settings.Instance.Blacklist);
-                                blacklist.Remove(existingGame);
-                                Settings.Instance.Blacklist = blacklist;
-                            }
-                        }
-                        else
-                        {
-                            // Moving to blacklist, remove from whitelist
-                            var existingGame = Settings.Instance.Whitelist.FirstOrDefault(g => comparer.Equals(g, game));
-                            if (existingGame != null)
-                            {
-                                var whitelist = new List<Game>(Settings.Instance.Whitelist);
-                                whitelist.Remove(existingGame);
-                                Settings.Instance.Whitelist = whitelist;
-                            }
-                        }
-
-                        // Add to target list
-                        if (isMovingToWhitelist)
-                        {
-                            bool exists = Settings.Instance.Whitelist.Any(g => comparer.Equals(g, game));
-                            if (!exists)
-                            {
-                                var whitelist = new List<Game>(Settings.Instance.Whitelist);
-                                whitelist.Add(game);
-                                Settings.Instance.Whitelist = whitelist;
-                                Log.Information($"Moved game {game.Name} to whitelist");
-                            }
-                        }
-                        else
-                        {
-                            bool exists = Settings.Instance.Blacklist.Any(g => comparer.Equals(g, game));
-                            if (!exists)
-                            {
-                                var blacklist = new List<Game>(Settings.Instance.Blacklist);
-                                blacklist.Add(game);
-                                Settings.Instance.Blacklist = blacklist;
-                                Log.Information($"Moved game {game.Name} to blacklist");
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error moving game: {ex.Message}");
-                await ShowModal("Error", $"Failed to move game: {ex.Message}", "error");
-            }
-            finally
-            {
-                Settings.Instance._isBulkUpdating = false;
-                SettingsService.SaveSettings();
-                _ = SendSettingsToFrontend("Moved game");
-            }
         }
 
     }

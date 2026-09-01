@@ -14,11 +14,6 @@ namespace ScreenLoop.Backend.Services
         private static readonly Dictionary<string, OrphanedFile> _pendingRecoveries = new();
         private static readonly Dictionary<string, string> _detectedGames = new();
 
-        private static async Task<Dictionary<string, string>> IdentifyGamesWithAi(List<OrphanedFile> orphanedFiles)
-        {
-            return await Task.FromResult(new Dictionary<string, string>());
-        }
-
         public static async Task CheckForOrphanedFilesAsync()
         {
             try
@@ -31,15 +26,6 @@ namespace ScreenLoop.Backend.Services
                     return;
 
                 Log.Information($"Found {orphanedFiles.Count} orphaned video file(s) without metadata");
-
-                // Only use AI for files that aren't already in a game subfolder
-                var filesNeedingAi = orphanedFiles.Where(f => string.IsNullOrEmpty(f.FolderGame)).ToList();
-                Dictionary<string, string>? aiIdentifiedGames = null;
-
-                if (filesNeedingAi.Count > 0)
-                {
-                    aiIdentifiedGames = await IdentifyGamesWithAi(filesNeedingAi);
-                }
 
                 var fileDataList = orphanedFiles.Select(orphanedFile =>
                 {
@@ -61,12 +47,8 @@ namespace ScreenLoop.Backend.Services
                         _ => orphanedFile.Type.ToString()
                     };
 
-                    // Use folder-derived game first, then AI as fallback
+                    // The game name is derived from the folder the file sits in
                     string? detectedGame = orphanedFile.FolderGame;
-                    if (string.IsNullOrEmpty(detectedGame) && aiIdentifiedGames != null && aiIdentifiedGames.TryGetValue(orphanedFile.FilePath, out string? aiGame))
-                    {
-                        detectedGame = aiGame;
-                    }
 
                     if (!string.IsNullOrEmpty(detectedGame))
                     {

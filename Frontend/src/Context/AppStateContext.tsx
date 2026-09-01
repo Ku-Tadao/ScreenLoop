@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
 import { State, initialState, GameListEntry } from '../Models/types';
 
 const AppStateContext = createContext<State>(initialState);
@@ -30,15 +30,36 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
     }
   };
 
-  const saveCachedState = (value: State) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
-    } catch {
-      // ignore caching errors
-    }
-  };
-
   const [appState, setAppState] = useState<State>(() => loadCachedState());
+
+  // The backend pushes state several times a second while recording (audio meter), and the
+  // payload includes the whole content library. Serializing that on every message is the
+  // most expensive thing this context does, so coalesce writes and skip live-only fields
+  // that loadCachedState throws away anyway.
+  const pendingStateRef = useRef<State | null>(null);
+  const saveTimerRef = useRef<number | null>(null);
+
+  const scheduleCacheSave = (value: State) => {
+    pendingStateRef.current = value;
+    if (saveTimerRef.current !== null) return;
+
+    saveTimerRef.current = window.setTimeout(() => {
+      saveTimerRef.current = null;
+      const snapshot = pendingStateRef.current;
+      pendingStateRef.current = null;
+      if (!snapshot) return;
+
+      try {
+        const persisted: Partial<State> = { ...snapshot };
+        delete persisted.recording;
+        delete persisted.preRecording;
+        delete persisted.systemAudioLevel;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
+      } catch {
+        // ignore caching errors
+      }
+    }, 1000);
+  };
 
   useEffect(() => {
     const handleWebSocketMessage = (event: CustomEvent<any>) => {
@@ -47,13 +68,13 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
       if (data.method === 'State') {
         setAppState((prev) => {
           const next: State = { ...prev, ...data.content };
-          saveCachedState(next);
+          scheduleCacheSave(next);
           return next;
         });
       } else if (data.method === 'GameList') {
         setAppState((prev) => {
           const next: State = { ...prev, gameList: data.content as GameListEntry[] };
-          saveCachedState(next);
+          scheduleCacheSave(next);
           return next;
         });
       }
@@ -62,6 +83,10 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
     window.addEventListener('websocket-message', handleWebSocketMessage as EventListener);
     return () => {
       window.removeEventListener('websocket-message', handleWebSocketMessage as EventListener);
+      if (saveTimerRef.current !== null) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
     };
   }, []);
 

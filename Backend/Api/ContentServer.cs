@@ -13,6 +13,12 @@ namespace ScreenLoop.Backend.Api
         private static CancellationTokenSource? _cancellationTokenSource;
         private static string? _trustedOrigin;
 
+        /// <summary>
+        /// Set when the listener could not start. The frontend is not connected yet at that
+        /// point, so the message is surfaced when the first connection arrives.
+        /// </summary>
+        public static string? StartupError { get; private set; }
+
         public static void ConfigureTrustedOrigin(string appUrl)
         {
             if (!Uri.TryCreate(appUrl, UriKind.Absolute, out var uri))
@@ -23,8 +29,22 @@ namespace ScreenLoop.Backend.Api
 
         public static void StartServer(string prefix)
         {
-            _httpListener.Prefixes.Add(prefix);
-            _httpListener.Start();
+            try
+            {
+                _httpListener.Prefixes.Add(prefix);
+                _httpListener.Start();
+            }
+            catch (Exception ex)
+            {
+                // Started from a fire-and-forget task, so an unhandled failure here would
+                // otherwise leave thumbnails and playback silently broken with no log entry.
+                Log.Error(ex, "Failed to start the content server at {Prefix}. Video playback and thumbnails will not work.", prefix);
+                StartupError =
+                    "ScreenLoop could not start its local media server on port 2222. Another program may be using that port. " +
+                    "Videos and thumbnails will not load until it is free and ScreenLoop is restarted.";
+                return;
+            }
+
             Log.Information("Server started at {Prefix}", prefix);
 
             _cancellationTokenSource = new CancellationTokenSource();
@@ -317,12 +337,10 @@ namespace ScreenLoop.Backend.Api
 
                 response.StatusCode = string.IsNullOrEmpty(rangeHeader) ? (int)HttpStatusCode.OK : (int)HttpStatusCode.PartialContent;
                 response.ContentType = "video/mp4";
+                // Accept-Ranges/Content-Range/Content-Length are exposed to fetch() once,
+                // in ProcessRequestAsync; re-adding a narrower list here would drop
+                // Content-Length from the exposed set.
                 response.AddHeader("Accept-Ranges", "bytes");
-                // Content-Range is not on the CORS response-header safelist, so the
-                // browser hides it from fetch() unless we explicitly expose it.
-                // The frontend reads it to determine the full file size from a small
-                // probe request (useAudioTracks.ts).
-                response.AddHeader("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges");
 
                 if (!string.IsNullOrEmpty(rangeHeader))
                 {

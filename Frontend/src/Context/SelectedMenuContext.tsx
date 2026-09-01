@@ -8,7 +8,9 @@ interface SelectedMenuContextValue {
 
 const SelectedMenuContext = createContext<SelectedMenuContextValue | undefined>(undefined);
 
-const defaultMenu = 'Full Sessions';
+// 'Full Sessions' only appears when legacy session recordings exist, so starting there
+// would flash an empty page before App.tsx redirects to a reachable item.
+const defaultMenu = 'Replay Buffer';
 
 const readCachedDefaultMenu = (): string | null => {
   if (typeof window === 'undefined') return null;

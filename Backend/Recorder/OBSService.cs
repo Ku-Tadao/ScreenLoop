@@ -44,7 +44,6 @@ namespace ScreenLoop.Backend.Recorder
 
         // Public properties
         public static bool IsInitialized { get; private set; }
-        public static GpuVendor DetectedGpuVendor { get; private set; } = DetectGpuVendor();
         public static uint? CapturedWindowWidth { get; private set; } = null;
         public static uint? CapturedWindowHeight { get; private set; } = null;
         public static string? InstalledOBSVersion { get; private set; } = null;
@@ -510,9 +509,21 @@ namespace ScreenLoop.Backend.Recorder
             // Set scene as program output
             Obs.SetOutputSource(_mainScene);
 
-            // Create video encoder
-            string encoderId = Settings.Instance.Codec!.InternalEncoderId;
-            Log.Information($"Using encoder: {Settings.Instance.Codec!.FriendlyName} ({encoderId})");
+            // Create video encoder. The codec can still be unset if encoder enumeration
+            // failed or the saved codec was dropped, so fall back instead of crashing.
+            Codec? codec = Settings.Instance.Codec ?? SelectDefaultCodec(Settings.Instance.Encoder, AppState.Instance.Codecs);
+            if (codec == null)
+            {
+                Log.Error("No video encoder is available. Aborting recording start.");
+                _ = ShowModal("Recording failed", "No video encoder is available. Please restart ScreenLoop.", "error");
+                AppState.Instance.PreRecording = null;
+                DisposeSources();
+                return false;
+            }
+            Settings.Instance.Codec = codec;
+
+            string encoderId = codec.InternalEncoderId;
+            Log.Information($"Using encoder: {codec.FriendlyName} ({encoderId})");
 
             using var videoEncoderSettings = new ObsKit.NET.Core.Settings();
             videoEncoderSettings.Set("preset", "Quality");
@@ -1154,23 +1165,9 @@ namespace ScreenLoop.Backend.Recorder
                 CapturedWindowWidth = null;
                 CapturedWindowHeight = null;
 
-                // If the recording ends before it started, don't do anything
-                if (AppState.Instance.Recording == null || (!isReplayBufferMode && AppState.Instance.Recording.FilePath == null))
-                {
-                    AppState.Instance.PreRecording = null;
-                    return;
-                }
-
-                // Get the file path before nullifying the recording (FilePath is not null at this point because of the previous check)
-                string filePath = AppState.Instance.Recording.FilePath!;
-
-                // Get the bookmarks before nullifying the recording
-                List<Bookmark> bookmarks = AppState.Instance.Recording.Bookmarks;
-
                 // Reset the recording and pre-recording
                 AppState.Instance.Recording = null;
                 AppState.Instance.PreRecording = null;
-
             }
             finally
             {
@@ -1770,6 +1767,10 @@ namespace ScreenLoop.Backend.Recorder
             var encoderTypes = Obs.EnumerateEncoderTypes().ToList();
             int idx = 0;
 
+            // Build a fresh list and assign it so the state setter notifies the frontend
+            // and a re-initialization cannot append duplicates.
+            var codecs = new List<Codec>();
+
             foreach (var encoderId in encoderTypes)
             {
                 EncoderFriendlyNames.TryGetValue(encoderId, out var name);
@@ -1781,11 +1782,12 @@ namespace ScreenLoop.Backend.Recorder
                 Log.Information($"{idx} - {friendlyName} | {encoderId} | {(isHardware ? "Hardware" : "Software")}");
                 if (name != null)
                 {
-                    AppState.Instance.Codecs.Add(new Codec { InternalEncoderId = encoderId, FriendlyName = friendlyName, IsHardwareEncoder = isHardware });
+                    codecs.Add(new Codec { InternalEncoderId = encoderId, FriendlyName = friendlyName, IsHardwareEncoder = isHardware });
                 }
                 idx++;
             }
 
+            AppState.Instance.Codecs = codecs;
             Log.Information($"Total encoders found: {idx}");
 
             if (Settings.Instance.Codec == null)

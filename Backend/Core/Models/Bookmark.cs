@@ -4,8 +4,9 @@ namespace ScreenLoop.Backend.Core.Models
 {
     public class Bookmark
     {
-        private static readonly Random random = new Random();
-        public int Id { get; set; } = random.Next(1, int.MaxValue);
+        // Bookmarks are created from hotkey, WebSocket and metadata threads, so use the
+        // thread-safe shared instance rather than a shared Random of our own.
+        public int Id { get; set; } = Random.Shared.Next(1, int.MaxValue);
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public BookmarkType Type { get; set; }
         [JsonConverter(typeof(JsonStringEnumConverter))]

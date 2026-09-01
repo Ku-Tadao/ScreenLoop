@@ -41,79 +41,27 @@ namespace ScreenLoop.Backend.Windows.Audio
 
         public static List<AudioDevice> GetInputDevices()
         {
-            var devices = new List<AudioDevice>();
-            var enumerator = new MMDeviceEnumerator();
-            var collection = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
-
-            try
-            {
-                var defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
-                if (defaultDevice != null)
-                {
-                    // Add default device first with (Default)
-                    var defaultDeviceName = GetCleanDeviceName(defaultDevice.FriendlyName);
-                    devices.Add(new AudioDevice
-                    {
-                        Id = defaultDevice.ID,
-                        Name = defaultDeviceName + " (Default)",
-                        IsDefault = true
-                    });
-                }
-            }
-            catch
-            {
-                // No default device available
-            }
-
-            if (collection != null)
-            {
-                foreach (var device in collection)
-                {
-                    if (device == null) continue;
-
-                    // Skip if this device is already added as the default
-                    if (devices.Any(d => d.Id == device.ID)) continue;
-
-                    try
-                    {
-                        var cleanName = GetCleanDeviceName(device.FriendlyName);
-                        devices.Add(new AudioDevice { Id = device.ID, Name = cleanName, IsDefault = false });
-                    }
-                    catch
-                    {
-                        // Device name is invalid
-                    }
-                }
-            }
-
-            // Sort devices by name (keeping the default at the top if it exists)
-            if (devices.Count > 0)
-            {
-                var defaultDev = devices.FirstOrDefault(d => d.IsDefault);
-                var devicesToSort = defaultDev != null ? devices.Where(d => !d.IsDefault).ToList() : devices;
-                var sortedDevices = devicesToSort.OrderBy(d => d.Name).ToList();
-
-                if (defaultDev != null)
-                {
-                    sortedDevices.Insert(0, defaultDev);
-                    return sortedDevices;
-                }
-
-                return sortedDevices;
-            }
-
-            return devices;
+            return GetDevices(DataFlow.Capture);
         }
 
         public static List<AudioDevice> GetOutputDevices()
         {
+            return GetDevices(DataFlow.Render);
+        }
+
+        /// <summary>
+        /// Enumerates active endpoints for one direction, with the system default listed
+        /// first. Every MMDevice and the enumerator are disposed: this runs on startup and
+        /// again on each device change, so leaked COM handles would accumulate.
+        /// </summary>
+        private static List<AudioDevice> GetDevices(DataFlow dataFlow)
+        {
             var devices = new List<AudioDevice>();
-            var enumerator = new MMDeviceEnumerator();
-            var collection = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+            using var enumerator = new MMDeviceEnumerator();
 
             try
             {
-                var defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                using var defaultDevice = enumerator.GetDefaultAudioEndpoint(dataFlow, Role.Multimedia);
                 if (defaultDevice != null)
                 {
                     // Add default device first with (Default)
@@ -131,17 +79,18 @@ namespace ScreenLoop.Backend.Windows.Audio
                 // No default device available
             }
 
-            if (collection != null)
+            try
             {
+                var collection = enumerator.EnumerateAudioEndPoints(dataFlow, DeviceState.Active);
                 foreach (var device in collection)
                 {
                     if (device == null) continue;
 
-                    // Skip if this device is already added as the default
-                    if (devices.Any(d => d.Id == device.ID)) continue;
-
                     try
                     {
+                        // Skip if this device is already added as the default
+                        if (devices.Any(d => d.Id == device.ID)) continue;
+
                         var cleanName = GetCleanDeviceName(device.FriendlyName);
                         devices.Add(new AudioDevice { Id = device.ID, Name = cleanName, IsDefault = false });
                     }
@@ -149,26 +98,30 @@ namespace ScreenLoop.Backend.Windows.Audio
                     {
                         // Device name is invalid
                     }
+                    finally
+                    {
+                        device.Dispose();
+                    }
                 }
+            }
+            catch
+            {
+                // Endpoint enumeration is unavailable; return whatever we already resolved
             }
 
             // Sort devices by name (keeping the default at the top if it exists)
-            if (devices.Count > 0)
+            var defaultDev = devices.FirstOrDefault(d => d.IsDefault);
+            var sortedDevices = devices
+                .Where(d => !d.IsDefault)
+                .OrderBy(d => d.Name)
+                .ToList();
+
+            if (defaultDev != null)
             {
-                var defaultDev = devices.FirstOrDefault(d => d.IsDefault);
-                var devicesToSort = defaultDev != null ? devices.Where(d => !d.IsDefault).ToList() : devices;
-                var sortedDevices = devicesToSort.OrderBy(d => d.Name).ToList();
-
-                if (defaultDev != null)
-                {
-                    sortedDevices.Insert(0, defaultDev);
-                    return sortedDevices;
-                }
-
-                return sortedDevices;
+                sortedDevices.Insert(0, defaultDev);
             }
 
-            return devices;
+            return sortedDevices;
         }
 
         public static double GetDefaultOutputPeak()
