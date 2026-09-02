@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TriangleAlert, X, CircleAlert } from 'lucide-react';
 import Button from '../Button';
-import { Settings as SettingsType, AudioDevice } from '../../Models/types';
+import { Settings as SettingsType, AudioDevice, DeviceSetting } from '../../Models/types';
 import { useAppState } from '../../Context/AppStateContext';
 
 interface AudioDevicesSectionProps {
@@ -63,25 +63,18 @@ export default function AudioDevicesSection({
     const availableDevices = isInput ? appState.inputDevices : appState.outputDevices;
 
     const isSelected = selectedDevices.some((d) => d.id === deviceId);
-    let updatedDevices;
+    let updatedDevices: DeviceSetting[];
 
     if (isSelected) {
       updatedDevices = selectedDevices.filter((d) => d.id !== deviceId);
+    } else if (deviceId === 'default') {
+      updatedDevices = [...selectedDevices, { id: 'default', name: 'Default Device', volume: 1.0 }];
     } else {
-      if (deviceId === 'default') {
-        updatedDevices = [
-          ...selectedDevices,
-          { id: 'default', name: 'Default Device', volume: 1.0 },
-        ];
-      } else {
-        const deviceToAdd = availableDevices.find((d) => d.id === deviceId);
-        if (deviceToAdd) {
-          updatedDevices = [
-            ...selectedDevices,
-            { id: deviceId, name: deviceToAdd.name, volume: 1.0 },
-          ];
-        }
-      }
+      const deviceToAdd = availableDevices.find((d) => d.id === deviceId);
+      // The device disappeared between render and click (unplugged); leave the
+      // selection untouched rather than writing an undefined device list.
+      if (!deviceToAdd) return;
+      updatedDevices = [...selectedDevices, { id: deviceId, name: deviceToAdd.name, volume: 1.0 }];
     }
 
     if (isInput) {

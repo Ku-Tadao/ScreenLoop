@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
-import { State, initialState, GameListEntry } from '../Models/types';
+import { State, initialState } from '../Models/types';
 
 const AppStateContext = createContext<State>(initialState);
 
@@ -71,12 +71,14 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
           scheduleCacheSave(next);
           return next;
         });
-      } else if (data.method === 'GameList') {
-        setAppState((prev) => {
-          const next: State = { ...prev, gameList: data.content as GameListEntry[] };
-          scheduleCacheSave(next);
-          return next;
-        });
+      } else if (data.method === 'SystemAudioLevel') {
+        // High-frequency meter update: merge the single field and never cache it.
+        const level = Number(data.content?.level);
+        if (Number.isFinite(level)) {
+          setAppState((prev) =>
+            prev.systemAudioLevel === level ? prev : { ...prev, systemAudioLevel: level },
+          );
+        }
       }
     };
 

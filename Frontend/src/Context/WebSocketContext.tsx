@@ -43,7 +43,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     onMessage: (event) => {
       try {
         const data: WebSocketMessage = JSON.parse(event.data);
-        if (data.method !== 'RecordingPreviewFrame') {
+        // Both of these arrive several times a second while recording.
+        if (data.method !== 'RecordingPreviewFrame' && data.method !== 'SystemAudioLevel') {
           console.log('WebSocket message received:', data);
         }
 

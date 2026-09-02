@@ -31,7 +31,6 @@ export default defineConfig({
           if (id.includes('react-dom')) return 'react-dom';
           if (id.includes('react-dnd')) return 'react-dnd';
           if (id.includes('lucide')) return 'lucide';
-          if (id.includes('@tanstack')) return 'tanstack';
           return 'vendor';
         },
       },

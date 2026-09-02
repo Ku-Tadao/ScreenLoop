@@ -26,9 +26,16 @@ export default function RecoveryModal({ files, onClose }: RecoveryModalProps) {
     return gameOverrides[file.recoveryId] || file.detectedGame || '';
   };
 
+  // Suggest the game names already present in the library. This used to read a
+  // backend-provided game list that is never sent, so the dropdown was always empty.
   const allGames = useMemo(() => {
-    return appState.gameList.map((game) => game.name).sort();
-  }, [appState.gameList]);
+    const names = new Set<string>();
+    for (const item of appState.content) {
+      const name = item.game?.trim();
+      if (name && name !== 'Unknown') names.add(name);
+    }
+    return [...names].sort();
+  }, [appState.content]);
 
   const filteredGames = useMemo(() => {
     const query = inputValue.trim().toLowerCase();

@@ -41,7 +41,6 @@ export interface State {
   codecs: Codec[];
   availableOBSVersions: OBSVersion[];
   isCheckingForUpdates: boolean;
-  gameList: GameListEntry[];
   maxDisplayHeight: number;
   currentFolderSizeGb: number;
   contentDriveFreeGb: number;
@@ -133,11 +132,6 @@ export interface Codec {
 export interface Game {
   name: string;
   paths?: string[];
-}
-
-export interface GameListEntry {
-  name: string;
-  executables: string[];
 }
 
 export interface GameIntegrationSettings {
@@ -301,7 +295,6 @@ export const initialState: State = {
   codecs: [],
   availableOBSVersions: [],
   isCheckingForUpdates: false,
-  gameList: [],
   maxDisplayHeight: 1080,
   currentFolderSizeGb: 0,
   contentDriveFreeGb: 0,

@@ -853,15 +853,24 @@ namespace ScreenLoop.Backend.App
             await SendFrontendMessage("Settings", frontendSettings ?? new JsonObject());
         }
 
+        /// <summary>
+        /// Sends only the output meter level. Kept separate from the state broadcast because
+        /// it fires several times a second and the full state carries the content library.
+        /// </summary>
+        public static Task SendSystemAudioLevel(double level)
+        {
+            if (!Program.hasLoadedInitialSettings)
+                return Task.CompletedTask;
+
+            return SendFrontendMessage("SystemAudioLevel", new { level });
+        }
+
         public static async Task SendStateToFrontend(string cause)
         {
             if (!Program.hasLoadedInitialSettings || Settings.Instance._isBulkUpdating)
                 return;
 
-            if (!cause.Contains("SystemAudioLevel", StringComparison.OrdinalIgnoreCase))
-            {
-                Log.Information("Sending state to frontend ({Cause})", cause);
-            }
+            Log.Information("Sending state to frontend ({Cause})", cause);
             Interlocked.Exchange(ref stateSendPending, 1);
             if (Interlocked.CompareExchange(ref stateSendRunning, 1, 0) != 0)
                 return;

@@ -300,13 +300,24 @@ namespace ScreenLoop.Backend.Core.Models
             set
             {
                 var clamped = Math.Clamp(value, 0, 1);
+                if (Math.Abs(_systemAudioLevel - clamped) <= 0.01)
+                    return;
+
+                // Always keep the field current so a full state sync reports the live level;
+                // only the outgoing message is throttled.
+                _systemAudioLevel = clamped;
+
                 var now = DateTime.UtcNow;
-                if (Math.Abs(_systemAudioLevel - clamped) > 0.01 &&
-                    now - _lastSystemAudioLevelSentUtc >= TimeSpan.FromMilliseconds(SystemAudioMeterSendIntervalMs))
+                if (now - _lastSystemAudioLevelSentUtc < TimeSpan.FromMilliseconds(SystemAudioMeterSendIntervalMs))
+                    return;
+
+                _lastSystemAudioLevelSentUtc = now;
+
+                // The meter updates several times a second. A full state broadcast would
+                // serialize the entire content library each time, so send just the level.
+                if (Settings.Instance != null && !Settings.Instance._isBulkUpdating)
                 {
-                    _systemAudioLevel = clamped;
-                    _lastSystemAudioLevelSentUtc = now;
-                    SendToFrontend("State update: SystemAudioLevel");
+                    _ = MessageService.SendSystemAudioLevel(clamped);
                 }
             }
         }
