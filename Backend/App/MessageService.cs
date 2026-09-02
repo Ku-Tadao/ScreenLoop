@@ -37,6 +37,7 @@ namespace ScreenLoop.Backend.App
         private static int stateSendRunning;
         private static int stateSendPending;
         private static int orphanScanStarted;
+        private static int audioLevelSendRunning;
         private static readonly JsonSerializerOptions jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -856,13 +857,25 @@ namespace ScreenLoop.Backend.App
         /// <summary>
         /// Sends only the output meter level. Kept separate from the state broadcast because
         /// it fires several times a second and the full state carries the content library.
+        /// Samples are dropped while a send is in flight: a meter reading is only useful
+        /// while it is current, so a backlog behind the send lock would be worse than a gap.
         /// </summary>
-        public static Task SendSystemAudioLevel(double level)
+        public static async Task SendSystemAudioLevel(double level)
         {
             if (!Program.hasLoadedInitialSettings)
-                return Task.CompletedTask;
+                return;
 
-            return SendFrontendMessage("SystemAudioLevel", new { level });
+            if (Interlocked.CompareExchange(ref audioLevelSendRunning, 1, 0) != 0)
+                return;
+
+            try
+            {
+                await SendFrontendMessage("SystemAudioLevel", new { level });
+            }
+            finally
+            {
+                Interlocked.Exchange(ref audioLevelSendRunning, 0);
+            }
         }
 
         public static async Task SendStateToFrontend(string cause)
