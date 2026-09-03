@@ -1,11 +1,9 @@
-import { createContext, useContext, ReactNode, useCallback, useRef } from 'react';
+import { createContext, useContext, ReactNode, useMemo, useRef } from 'react';
 import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 
 interface WebSocketContextType {
-  sendMessage: (message: string) => void;
   isConnected: boolean;
-  connectionState: ReadyState;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
@@ -41,6 +39,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       console.error('WebSocket error:', event);
     },
     onMessage: (event) => {
+      // The heartbeat reply is a bare string, not a JSON envelope.
+      if (typeof event.data !== 'string' || event.data === 'pong') return;
+
       try {
         const data: WebSocketMessage = JSON.parse(event.data);
         // Both of these arrive several times a second while recording.
@@ -88,13 +89,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  const contextValue = {
-    sendMessage: useCallback((message: string) => {
-      sendMessageToBackend(message);
-    }, []),
-    isConnected: readyState === ReadyState.OPEN,
-    connectionState: readyState,
-  };
+  // Memoized: SettingsProvider subscribes to this context, so a fresh object on
+  // every render would re-render the whole app on each provider render.
+  const isConnected = readyState === ReadyState.OPEN;
+  const contextValue = useMemo(() => ({ isConnected }), [isConnected]);
 
   return <WebSocketContext.Provider value={contextValue}>{children}</WebSocketContext.Provider>;
 }
