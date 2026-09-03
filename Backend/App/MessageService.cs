@@ -228,7 +228,7 @@ namespace ScreenLoop.Backend.App
                                 return;
                             }
 
-                            _ = Task.Run(() => OBSService.StartRecording(startManually: true));
+                            _ = Task.Run(() => OBSService.StartRecording());
                             break;
                         case "StopRecording":
                             _ = Task.Run(OBSService.StopRecording);

@@ -496,7 +496,7 @@ namespace ScreenLoop.Backend.Windows.Input
                     else
                     {
                         Log.Information("Hotkey: starting display recording");
-                        Task.Run(() => OBSService.StartRecording(startManually: true));
+                        Task.Run(() => OBSService.StartRecording());
                     }
                     break;
 

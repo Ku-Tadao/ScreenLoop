@@ -753,7 +753,7 @@ namespace ScreenLoop.Backend.Services
 
                 if (settings.AlwaysRecord && OBSService.IsInitialized && AppState.Instance.Recording == null && AppState.Instance.PreRecording == null)
                 {
-                    _ = Task.Run(() => OBSService.StartRecording(startManually: true));
+                    _ = Task.Run(() => OBSService.StartRecording());
                 }
             }
 

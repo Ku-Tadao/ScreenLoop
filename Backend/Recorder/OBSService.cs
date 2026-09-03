@@ -363,7 +363,7 @@ namespace ScreenLoop.Backend.Recorder
                 if (Settings.Instance.AlwaysRecord)
                 {
                     Log.Information("Always Record is enabled; starting replay buffer automatically.");
-                    _ = Task.Run(() => StartRecording(startManually: true));
+                    _ = Task.Run(() => StartRecording());
                 }
             }
             catch (Exception ex)
@@ -460,7 +460,7 @@ namespace ScreenLoop.Backend.Recorder
                 .Fps(customFps ?? 60));
         }
 
-        public static bool StartRecording(string name = "Manual Recording", string exePath = "Unknown", bool startManually = false, int? pid = null)
+        public static bool StartRecording(string name = "Manual Recording", string exePath = "Unknown", int? pid = null)
         {
             // Wait for pending StopRecording to complete before starting. Prevents race conditions where a new recording starts before cleanup finishes
             _stopRecordingSemaphore.Wait();
