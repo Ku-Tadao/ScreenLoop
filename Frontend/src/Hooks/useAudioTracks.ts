@@ -28,7 +28,6 @@ export interface AudioTrackState {
 
 interface AudioTrackData {
   ScreenLoopIndex: number;
-  mp4TrackId: number;
   timescale: number;
   // AAC encoder priming (media_time from the edit list) in microseconds.
   // Subtracted from every decoded timestamp so presentation time starts at 0.
@@ -107,7 +106,6 @@ export function useAudioTracks(
   const masterGainRef = useRef<GainNode | null>(null);
   const trackDataRef = useRef<Map<number, AudioTrackData>>(new Map());
 
-  const fileSizeRef = useRef<number>(0);
   const fetchUrlRef = useRef<string>('');
   const pumpingRef = useRef<boolean>(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -433,7 +431,6 @@ export function useAudioTracks(
         console.error('[useAudioTracks] could not determine file size');
         return;
       }
-      fileSizeRef.current = fileSize;
 
       // mp4box is used only as a moov parser. After we extract compact sample
       // tables we drop the file reference and manage fetching ourselves.
@@ -574,7 +571,6 @@ export function useAudioTracks(
 
         const td: AudioTrackData = {
           ScreenLoopIndex: i,
-          mp4TrackId: trk.id,
           timescale: trk.timescale,
           primingMicros: computePrimingMicros(trk.edits, trk.timescale),
           offsets,
@@ -664,7 +660,6 @@ export function useAudioTracks(
       if (ctx) ctx.close().catch(() => {});
       audioCtxRef.current = null;
 
-      fileSizeRef.current = 0;
       pumpingRef.current = false;
       setTracks([]);
     };
