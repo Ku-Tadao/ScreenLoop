@@ -267,14 +267,6 @@ namespace ScreenLoop.Backend.Services
                 hasChanges = true;
             }
 
-            // Update ClipShowInBrowserAfterUpload
-            if (settings.ClipShowInBrowserAfterUpload != updatedSettings.ClipShowInBrowserAfterUpload)
-            {
-                Log.Information($"ClipShowInBrowserAfterUpload changed from '{settings.ClipShowInBrowserAfterUpload}' to '{updatedSettings.ClipShowInBrowserAfterUpload}'");
-                settings.ClipShowInBrowserAfterUpload = updatedSettings.ClipShowInBrowserAfterUpload;
-                hasChanges = true;
-            }
-
             // Update ClipQualityCpu
             if (settings.ClipQualityCpu != updatedSettings.ClipQualityCpu)
             {
