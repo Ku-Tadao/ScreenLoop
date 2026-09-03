@@ -121,6 +121,19 @@ jobs:
           }
           $nextBaseVersion = "$major.$minor.$patch"
           Write-Host "Next base version would be: $nextBaseVersion"
+
+          # Prereleases already in flight target a base version that has not shipped yet.
+          # Before the first final release the lookup above falls back to 0.0.0, so the
+          # computed base can sort below betas that are already published. Keep whichever
+          # base is higher, otherwise the next prerelease is an update-channel downgrade.
+          $highestPrereleaseBase = git tag | ForEach-Object {
+            if ($_ -match '^v(\d+\.\d+\.\d+)-(beta|rc)\.\d+$') { $Matches[1] }
+          } | Sort-Object { [version]$_ } | Select-Object -Last 1
+
+          if ($highestPrereleaseBase -and [version]$highestPrereleaseBase -gt [version]$nextBaseVersion) {
+            Write-Host "In-flight prereleases target $highestPrereleaseBase, ahead of $nextBaseVersion. Using it."
+            $nextBaseVersion = $highestPrereleaseBase
+          }
           Write-Host "Prerelease type: $prereleaseType"
 
           # Check if there are existing prereleases of the selected type for this next version
