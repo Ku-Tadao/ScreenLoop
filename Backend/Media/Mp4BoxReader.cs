@@ -182,9 +182,12 @@ namespace ScreenLoop.Backend.Media
                     payloadStart = pos + 8;
                 }
 
-                if (totalSize < 8 || pos + totalSize > end) yield break;
+                // Widen before comparing: a box claiming a size near int.MaxValue would
+                // otherwise overflow the bounds check and walk off the buffer.
+                if (totalSize < 8 || (long)pos + totalSize > end) yield break;
 
                 int payloadLength = (pos + totalSize) - payloadStart;
+                if (payloadLength < 0) yield break;
                 yield return new BoxSpan(type, payloadStart, payloadLength);
                 pos += totalSize;
             }

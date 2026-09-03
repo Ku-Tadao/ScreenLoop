@@ -168,11 +168,14 @@ namespace ScreenLoop.Backend.Services
                     src.Slice(y * srcStride, rowBytes).CopyTo(buffer.AsSpan(y * rowBytes, rowBytes));
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                // This runs on an OBS native callback thread; letting an exception escape
+                // would tear down the process, so drop the frame instead.
                 ArrayPool<byte>.Shared.Return(buffer);
                 Interlocked.Exchange(ref _isEncoding, 0);
-                throw;
+                Log.Warning(ex, "Preview frame copy failed");
+                return;
             }
 
             // Off-thread: encode to JPEG and ship over WebSocket. Free the buffer when done.

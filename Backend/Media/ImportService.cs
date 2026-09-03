@@ -45,7 +45,9 @@ namespace ScreenLoop.Backend.Media
                 // Open file dialog on dedicated STA thread to avoid reentrancy issues with WebView2
                 string[]? selectedFiles = null;
 
-                var tcs = new TaskCompletionSource<string[]?>();
+                // Run continuations asynchronously so the rest of the import does not
+                // resume inline on the short-lived STA dialog thread.
+                var tcs = new TaskCompletionSource<string[]?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
                 var staThread = new Thread(() =>
                 {
@@ -75,6 +77,7 @@ namespace ScreenLoop.Backend.Media
                     }
                 });
 
+                staThread.IsBackground = true;
                 staThread.SetApartmentState(ApartmentState.STA);
                 staThread.Start();
 
