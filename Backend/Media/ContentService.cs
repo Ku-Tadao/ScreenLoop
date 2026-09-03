@@ -317,8 +317,10 @@ namespace ScreenLoop.Backend.Media
                     return;
                 }
 
-                // Ensure the video file exists before attempting deletion
-                string? videoDirectory = Path.GetDirectoryName(normalizedFilePath);
+                // Ensure the video file exists before attempting deletion.
+                // GetDirectoryName hands back platform separators, so normalize again to keep
+                // the folder comparison below in this app's forward-slash convention.
+                string? videoDirectory = PathUtils.NormalizeOrNull(Path.GetDirectoryName(normalizedFilePath));
                 if (File.Exists(normalizedFilePath))
                 {
                     int maxRetries = 3;
@@ -341,19 +343,22 @@ namespace ScreenLoop.Backend.Media
                     // Clean up empty game folder if it exists
                     if (!string.IsNullOrEmpty(videoDirectory) && Directory.Exists(videoDirectory))
                     {
+                        string gameFolder = videoDirectory;
                         try
                         {
-                            // Only delete if the folder is empty and is a game subfolder (not the root video type folder)
+                            // Only delete if the folder is empty and is a game subfolder (not the
+                            // root video type folder). Both sides are built with PathUtils so the
+                            // separators match — Path.Combine would splice in a backslash here and
+                            // the comparison could never succeed.
                             string contentRoot = Settings.Instance.ContentFolder;
                             string[] rootFolders = { FolderNames.Sessions, FolderNames.Buffers, FolderNames.Clips, FolderNames.Highlights };
                             bool isGameSubfolder = rootFolders.Any(rf =>
-                                videoDirectory.StartsWith(Path.Combine(contentRoot, rf), StringComparison.OrdinalIgnoreCase) &&
-                                !videoDirectory.Equals(Path.Combine(contentRoot, rf), StringComparison.OrdinalIgnoreCase));
+                                gameFolder.StartsWith(PathUtils.Combine(contentRoot, rf) + "/", StringComparison.OrdinalIgnoreCase));
 
-                            if (isGameSubfolder && !Directory.EnumerateFileSystemEntries(videoDirectory).Any())
+                            if (isGameSubfolder && !Directory.EnumerateFileSystemEntries(gameFolder).Any())
                             {
-                                Directory.Delete(videoDirectory);
-                                Log.Information($"Deleted empty game folder: {videoDirectory}");
+                                Directory.Delete(gameFolder);
+                                Log.Information($"Deleted empty game folder: {gameFolder}");
                             }
                         }
                         catch (Exception ex)
