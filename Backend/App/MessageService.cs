@@ -371,7 +371,13 @@ namespace ScreenLoop.Backend.App
         private static async Task HandleCompressVideo(JsonElement message)
         {
             Log.Information($"CompressVideo: {message}");
-            message.TryGetProperty("FilePath", out JsonElement filePathElement);
+            if (!message.TryGetProperty("FilePath", out JsonElement filePathElement) ||
+                filePathElement.ValueKind != JsonValueKind.String)
+            {
+                Log.Warning("CompressVideo message is missing a FilePath.");
+                return;
+            }
+
             await CompressionService.CompressVideo(filePathElement.GetString()!);
         }
 
@@ -537,68 +543,88 @@ namespace ScreenLoop.Backend.App
             }
         }
 
+        /// <summary>
+        /// Shows a folder picker on a dedicated STA thread and returns the chosen path, or
+        /// null if the user cancelled. Websocket commands are handled on thread-pool threads,
+        /// which are MTA, and FolderBrowserDialog refuses to open from one.
+        /// </summary>
+        private static Task<string?> PickFolderAsync(string description)
+        {
+            // Continuations run off the dialog thread so the caller's remaining work does not
+            // resume on it.
+            var tcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            var staThread = new Thread(() =>
+            {
+                try
+                {
+                    using var fbd = new FolderBrowserDialog
+                    {
+                        Description = description,
+                        RootFolder = Environment.SpecialFolder.Desktop
+                    };
+
+                    tcs.SetResult(fbd.ShowDialog() == DialogResult.OK ? fbd.SelectedPath : null);
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            })
+            {
+                IsBackground = true
+            };
+
+            staThread.SetApartmentState(ApartmentState.STA);
+            staThread.Start();
+
+            return tcs.Task;
+        }
+
         private static async Task SetVideoLocationAsync()
         {
-            using (var fbd = new FolderBrowserDialog())
+            string? chosenPath = await PickFolderAsync("Select a folder to set as the video location.");
+            if (chosenPath == null)
             {
-                // Set an initial description or instruction for the dialog
-                fbd.Description = "Select a folder to set as the video location.";
-
-                // Optionally, set the root folder for the dialog (e.g., My Computer or Desktop)
-                fbd.RootFolder = Environment.SpecialFolder.Desktop;
-
-                // Show the dialog and check if the user selected a folder
-                if (fbd.ShowDialog() == DialogResult.OK)
-                {
-                    // Get the selected folder path
-                    string selectedPath = Shared.PathUtils.Normalize(fbd.SelectedPath);
-                    Log.Information($"Selected Folder: {selectedPath}");
-
-                    // Check if the new folder would exceed storage limit
-                    bool shouldProceed = await StorageWarningService.CheckContentFolderChange(selectedPath);
-                    if (shouldProceed)
-                    {
-                        // Update settings with the selected folder path
-                        Settings.Instance.ContentFolder = selectedPath;
-                        SettingsService.SaveSettings();
-                        await SettingsService.LoadContentFromFolderIntoState(true);
-                        await SendSettingsToFrontend("Content folder changed");
-                    }
-                    // If not proceeding, a warning modal was sent to the frontend
-                }
-                else
-                {
-                    Log.Information("Folder selection was canceled.");
-                }
+                Log.Information("Folder selection was canceled.");
+                return;
             }
+
+            string selectedPath = Shared.PathUtils.Normalize(chosenPath);
+            Log.Information($"Selected Folder: {selectedPath}");
+
+            // Check if the new folder would exceed storage limit
+            bool shouldProceed = await StorageWarningService.CheckContentFolderChange(selectedPath);
+            if (shouldProceed)
+            {
+                Settings.Instance.ContentFolder = selectedPath;
+                SettingsService.SaveSettings();
+                await SettingsService.LoadContentFromFolderIntoState(true);
+                await SendSettingsToFrontend("Content folder changed");
+            }
+            // If not proceeding, a warning modal was sent to the frontend
         }
 
         private static async Task SetCacheLocationAsync()
         {
-            using (var fbd = new FolderBrowserDialog())
+            string? chosenPath = await PickFolderAsync("Select a folder for metadata, thumbnails, and waveforms.");
+            if (chosenPath == null)
             {
-                fbd.Description = "Select a folder for metadata, thumbnails, and waveforms.";
-                fbd.RootFolder = Environment.SpecialFolder.Desktop;
-
-                if (fbd.ShowDialog() == DialogResult.OK)
-                {
-                    string selectedPath = Shared.PathUtils.Normalize(fbd.SelectedPath);
-                    string oldCacheFolder = Settings.Instance.CacheFolder;
-                    Log.Information($"Selected Cache Folder: {selectedPath}");
-
-                    Settings.Instance.CacheFolder = selectedPath;
-                    SettingsService.SaveSettings();
-
-                    // Migrate cache contents to new folder
-                    await SettingsService.MigrateCacheFolder(oldCacheFolder, selectedPath);
-
-                    await SendSettingsToFrontend("Cache folder changed");
-                }
-                else
-                {
-                    Log.Information("Cache folder selection was canceled.");
-                }
+                Log.Information("Cache folder selection was canceled.");
+                return;
             }
+
+            string selectedPath = Shared.PathUtils.Normalize(chosenPath);
+            string oldCacheFolder = Settings.Instance.CacheFolder;
+            Log.Information($"Selected Cache Folder: {selectedPath}");
+
+            Settings.Instance.CacheFolder = selectedPath;
+            SettingsService.SaveSettings();
+
+            // Migrate cache contents to new folder
+            await SettingsService.MigrateCacheFolder(oldCacheFolder, selectedPath);
+
+            await SendSettingsToFrontend("Cache folder changed");
         }
 
         public static async Task StartWebsocket()
