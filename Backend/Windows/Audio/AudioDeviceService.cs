@@ -124,17 +124,51 @@ namespace ScreenLoop.Backend.Windows.Audio
             return sortedDevices;
         }
 
+        // The output meter is polled about ten times a second for the whole life of the
+        // app. Building an enumerator and resolving the default endpoint on every tick is
+        // pure COM churn, so the device is held until the endpoint set changes (see
+        // InvalidateDefaultOutputCache) or it stops responding.
+        private static readonly object DefaultOutputLock = new();
+        private static MMDeviceEnumerator? _meterEnumerator;
+        private static MMDevice? _defaultOutputDevice;
+
+        /// <summary>
+        /// Drops the cached default output endpoint so the next poll re-resolves it.
+        /// Call this whenever the endpoint set or the system default changes.
+        /// </summary>
+        public static void InvalidateDefaultOutputCache()
+        {
+            lock (DefaultOutputLock)
+            {
+                ReleaseMeterCacheLocked();
+            }
+        }
+
+        private static void ReleaseMeterCacheLocked()
+        {
+            try { _defaultOutputDevice?.Dispose(); } catch { /* best effort */ }
+            _defaultOutputDevice = null;
+        }
+
         public static double GetDefaultOutputPeak()
         {
-            try
+            lock (DefaultOutputLock)
             {
-                using var enumerator = new MMDeviceEnumerator();
-                using var defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                return Math.Clamp(defaultDevice.AudioMeterInformation.MasterPeakValue, 0.0f, 1.0f);
-            }
-            catch
-            {
-                return 0;
+                try
+                {
+                    _meterEnumerator ??= new MMDeviceEnumerator();
+                    _defaultOutputDevice ??= _meterEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                    return Math.Clamp(_defaultOutputDevice.AudioMeterInformation.MasterPeakValue, 0.0f, 1.0f);
+                }
+                catch
+                {
+                    // The endpoint (or the enumerator itself) went away between ticks.
+                    // Drop both so the next poll starts from scratch.
+                    ReleaseMeterCacheLocked();
+                    try { _meterEnumerator?.Dispose(); } catch { /* best effort */ }
+                    _meterEnumerator = null;
+                    return 0;
+                }
             }
         }
     }

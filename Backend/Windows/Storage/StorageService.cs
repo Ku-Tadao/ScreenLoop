@@ -147,8 +147,6 @@ namespace ScreenLoop.Backend.Windows.Storage
 
         private static async Task DeleteOldestContent(string contentFolder, long spaceToFreeBytes)
         {
-            double spaceToFreeGB = (double)spaceToFreeBytes / BYTES_PER_GB;
-
             // Do not delete files newer than 1 hour since they are likely still in use
             DateTime oneHourAgo = DateTime.Now.AddHours(-1);
             await SettingsService.LoadContentFromFolderIntoState(false);

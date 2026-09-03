@@ -328,6 +328,10 @@ namespace ScreenLoop.Backend.Core.Models
 
         private void OnAudioDevicesChanged()
         {
+            // The meter polls the default endpoint continuously, so drop its cached
+            // device immediately rather than waiting out the debounce below.
+            AudioDeviceService.InvalidateDefaultOutputCache();
+
             _audioDeviceDebounceTimer?.Dispose();
             _audioDeviceDebounceTimer = new System.Threading.Timer(
                 _ => UpdateAudioDevices(),
