@@ -8,9 +8,7 @@ namespace ScreenLoop.Backend.Windows.Display
 {
     public static class DisplayService
     {
-        private static List<Core.Models.Display> displays = new();
-        private static List<Core.Models.Display> pendingDisplays = new();
-        private static bool isCollectingDisplays = false;
+        private static readonly List<Core.Models.Display> pendingDisplays = new();
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         public static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumDelegate lpfnEnum, IntPtr dwData);
@@ -132,9 +130,7 @@ namespace ScreenLoop.Backend.Windows.Display
         {
             // Collect new displays without logging
             pendingDisplays.Clear();
-            isCollectingDisplays = true;
             EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, MonitorEnumProc, IntPtr.Zero);
-            isCollectingDisplays = false;
 
             var newMaxHeight = GetMaxDisplayHeight();
             var currentDisplays = AppState.Instance.Displays;
@@ -160,8 +156,7 @@ namespace ScreenLoop.Backend.Windows.Display
                 }
                 Log.Information("=== End Monitor List ===");
 
-                displays = new List<Core.Models.Display>(pendingDisplays);
-                AppState.Instance.Displays = displays;
+                AppState.Instance.Displays = new List<Core.Models.Display>(pendingDisplays);
             }
 
             if (maxHeightChanged)
@@ -186,16 +181,7 @@ namespace ScreenLoop.Backend.Windows.Display
                 if (EnumDisplayDevices(mi.DeviceName, 0, ref device, 1))
                 {
                     string friendlyName = GetFriendlyMonitorName(device.DeviceID, device.DeviceString);
-                    var display = new Core.Models.Display { DeviceName = friendlyName, DeviceId = device.DeviceID, IsPrimary = (mi.Flags & 1) != 0 };
-
-                    if (isCollectingDisplays)
-                    {
-                        pendingDisplays.Add(display);
-                    }
-                    else
-                    {
-                        displays.Add(display);
-                    }
+                    pendingDisplays.Add(new Core.Models.Display { DeviceName = friendlyName, DeviceId = device.DeviceID, IsPrimary = (mi.Flags & 1) != 0 });
                 }
             }
 
