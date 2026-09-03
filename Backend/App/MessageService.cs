@@ -599,7 +599,19 @@ namespace ScreenLoop.Backend.App
         {
             HttpListener listener = new HttpListener();
             listener.Prefixes.Add("http://localhost:44030/");
-            listener.Start();
+
+            try
+            {
+                listener.Start();
+            }
+            catch (Exception ex)
+            {
+                // This runs as a fire-and-forget task, so an escaping exception here would
+                // leave the UI stuck on "Reconnecting" with nothing written to the log.
+                Log.Fatal(ex, "Could not start the WebSocket server on port 44030. Another program is likely using it, and the ScreenLoop window will not be able to connect until it is free.");
+                return;
+            }
+
             Log.Information("WebSocket server started at ws://localhost:44030/");
 
             try

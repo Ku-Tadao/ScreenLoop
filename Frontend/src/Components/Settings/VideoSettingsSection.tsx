@@ -52,51 +52,11 @@ export default function VideoSettingsSection({
   }));
   const selectedCodecValue = settings.codec?.internalEncoderId || codecOptions[0]?.value || '';
 
+  // The backend owns the preset table (PresetsService) and broadcasts the resulting
+  // settings, so just ask it to apply one. Mirroring the table here meant maintaining
+  // the same numbers in two languages and racing the backend's own broadcast.
+  // This matches how the clip presets already work.
   const applyPreset = (preset: VideoQualityPreset) => {
-    const isAmd = settings.codec?.internalEncoderId.toLowerCase().includes('amf') ?? false;
-    const presetSettings: Partial<SettingsType> =
-      preset === 'low'
-        ? {
-            videoQualityPreset: 'low',
-            resolution: '720p',
-            frameRate: 30,
-            rateControl: 'VBR',
-            cqLevel: isAmd ? 22 : 24,
-            bitrate: isAmd ? 20000 : 15000,
-            minBitrate: 10000,
-            maxBitrate: isAmd ? 20000 : 15000,
-            encoder: 'gpu',
-          }
-        : preset === 'standard'
-          ? {
-              videoQualityPreset: 'standard',
-              resolution: '1080p',
-              frameRate: 60,
-              rateControl: 'VBR',
-              cqLevel: isAmd ? 20 : 22,
-              bitrate: isAmd ? 40000 : 30000,
-              minBitrate: isAmd ? 25000 : 20000,
-              maxBitrate: isAmd ? 50000 : 40000,
-              encoder: 'gpu',
-            }
-          : preset === 'high'
-            ? {
-                videoQualityPreset: 'high',
-                resolution: appState.maxDisplayHeight >= 1440 ? '1440p' : '1080p',
-                frameRate: 60,
-                rateControl: 'VBR',
-                cqLevel: isAmd ? 18 : 20,
-                bitrate: isAmd ? 60000 : 50000,
-                minBitrate: isAmd ? 45000 : 40000,
-                maxBitrate: isAmd ? 90000 : 70000,
-                encoder: 'gpu',
-              }
-            : { videoQualityPreset: 'custom' };
-
-    updateSettings({
-      ...presetSettings,
-      replayBufferMaxSize: getBufferMaxSizeMb(settings, presetSettings),
-    });
     sendMessageToBackend('ApplyVideoPreset', { preset });
   };
 
@@ -293,9 +253,9 @@ export default function VideoSettingsSection({
             ariaLabel="Monitor"
             items={[
               { value: 'Automatic', label: 'Automatic' },
-              ...appState.displays.map((display, index) => ({
+              ...appState.displays.map((display) => ({
                 value: display.deviceId,
-                label: `${display.deviceName}${display.isPrimary ? ' (Primary)' : ''}${index > 0 ? '' : ''}`,
+                label: `${display.deviceName}${display.isPrimary ? ' (Primary)' : ''}`,
               })),
             ]}
             value={settings.selectedDisplay?.deviceId || 'Automatic'}

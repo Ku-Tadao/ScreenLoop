@@ -64,9 +64,6 @@ export enum BookmarkType {
   Death = 'Death',
 }
 
-export const includeInHighlight = (type: BookmarkType): boolean =>
-  type === BookmarkType.Kill || type === BookmarkType.Goal;
-
 export enum BookmarkSubtype {
   Headshot = 'Headshot',
 }
