@@ -87,7 +87,7 @@ internal static class MigrationService
         {
             if (!File.Exists(AppliedPath)) return new HashSet<string>();
             var json = File.ReadAllText(AppliedPath);
-            var doc = System.Text.Json.JsonDocument.Parse(json);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
             var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (doc.RootElement.TryGetProperty("applied", out var arr) && arr.ValueKind == System.Text.Json.JsonValueKind.Array)
             {
@@ -180,7 +180,7 @@ internal static class MigrationService
             {
                 if (prop.Name == "clipClearSelectionsAfterCreatingClip")
                 {
-                    newObj["clipClearSegmentsAfterCreatingClip"] = oldValue;
+                    newObj["clipClearSegmentsAfterCreatingClip"] = oldValue.Clone();
                 }
                 else
                 {
