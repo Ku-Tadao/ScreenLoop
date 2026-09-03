@@ -24,9 +24,6 @@ namespace ScreenLoop.Backend.App
         [DllImport("user32.dll")]
         static extern bool SetForegroundWindow(IntPtr hWnd);
 
-        [DllImport("user32.dll")]
-        static extern bool SetProcessDPIAware();
-
         const int SW_HIDE = 0;
         const int SW_SHOW = 5;
         const int SW_RESTORE = 9;
@@ -49,8 +46,9 @@ namespace ScreenLoop.Backend.App
         [STAThread]
         static void Main(string[] args)
         {
-            // Set process DPI aware to ensure we capture at physical resolution
-            SetProcessDPIAware();
+            // DPI awareness comes from app.manifest (PerMonitorV2), which is applied before
+            // any managed code runs. Calling SetProcessDPIAware() here would fail silently —
+            // awareness can only be set once — and would be a downgrade if it ever won.
             Directory.SetCurrentDirectory(AppDomain.CurrentDomain.BaseDirectory);
 
             // In debug mode, kill any existing instances before starting

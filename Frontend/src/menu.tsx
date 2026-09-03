@@ -36,6 +36,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const { hasLoadedObs, recording, preRecording } = appState;
   const { updateInfo } = useUpdate();
   const { obsDownloadProgress } = useObsDownload();
+  const { imports } = useImports();
   const { isConnected } = useWebSocketContext();
   const [buttonCooldown, setButtonCooldown] = useState(false);
 
@@ -182,7 +183,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
           </AnimatePresence>
 
           <AnimatePresence>
-            {Object.values(useImports().imports).map((importItem) => (
+            {Object.values(imports).map((importItem) => (
               <AnimatedCard key={importItem.id}>
                 <ImportCard importItem={importItem} />
               </AnimatedCard>

@@ -74,6 +74,10 @@ export default function DropdownSelect({
   }, [isOpen, computeMenuFit]);
 
   React.useEffect(() => {
+    // Only listen while open. The settings page renders a dozen of these, and a closed
+    // dropdown has nothing to dismiss.
+    if (!isOpen) return;
+
     function onDocMouseDown(e: MouseEvent) {
       if (!containerRef.current?.contains(e.target as Node)) setIsOpen(false);
     }
@@ -156,6 +160,9 @@ export default function DropdownSelect({
         id={menuId}
         role="listbox"
         aria-hidden={!isOpen}
+        // The menu stays mounted while closed, so without this every option button
+        // remains in the tab order (and focusable content inside aria-hidden is invalid).
+        inert={!isOpen}
         className={computedMenuClassName}
         style={menuMaxHeight ? { maxHeight: `${menuMaxHeight}px`, overflowY: 'auto' } : undefined}
       >

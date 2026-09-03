@@ -1,7 +1,7 @@
 import { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 
 export interface ImportProgress {
-  id: string;
+  id: number;
   fileName: string;
   progress: number;
   status: 'importing' | 'done' | 'error';
@@ -12,7 +12,7 @@ export interface ImportProgress {
 
 interface ImportContextType {
   imports: Record<string, ImportProgress>;
-  removeImport: (id: string) => void;
+  removeImport: (id: number) => void;
 }
 
 const ImportContext = createContext<ImportContextType | undefined>(undefined);
@@ -59,7 +59,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const removeImport = (id: string) => {
+  const removeImport = (id: number) => {
     setImports((prev) => {
       const newImports = { ...prev };
       delete newImports[id];

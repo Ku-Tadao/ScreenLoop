@@ -8,7 +8,7 @@ export interface ModalMessage {
 }
 
 export interface ImportProgressMessage {
-  id: string;
+  id: number;
   fileName: string;
   progress: number;
   status: 'importing' | 'done' | 'error';
@@ -23,7 +23,7 @@ export interface StorageWarningMessage {
   description: string;
   confirmText: string;
   cancelText: string;
-  action: 'import';
+  action: 'import' | 'contentFolder';
   actionData: any;
 }
 
