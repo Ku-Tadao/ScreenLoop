@@ -15,6 +15,9 @@ namespace ScreenLoop.Backend.Windows.Input
     {
         private const int WH_KEYBOARD_LL = 13;
         private const int WM_HOTKEY = 0x0312;
+        // Private request posted to the message window so hotkey (un)registration always
+        // happens on the thread that owns it.
+        private const int WM_APP_REFRESH_HOTKEYS = 0x8000; // WM_APP
         private const int WM_INPUT = 0x00FF;
         private const int WM_KEYDOWN = 0x0100;
         private const int WM_SYSKEYDOWN = 0x0104;
@@ -115,7 +118,14 @@ namespace ScreenLoop.Backend.Windows.Input
                 _boundMainKeys = null;
             }
 
-            RegisterHotkeys();
+            // RegisterHotKey and UnregisterHotKey only work from the thread that owns the
+            // target window, and settings changes reach this method on a websocket handler
+            // thread. Hand the work to the message loop instead of failing silently there.
+            var window = _messageWindow;
+            if (window != null && window.Handle != IntPtr.Zero)
+            {
+                PostMessage(window.Handle, WM_APP_REFRESH_HOTKEYS, IntPtr.Zero, IntPtr.Zero);
+            }
         }
 
         private static IntPtr SetHook(LowLevelKeyboardProc proc)
@@ -553,6 +563,10 @@ namespace ScreenLoop.Backend.Windows.Input
         private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
         [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll", SetLastError = true)]
         private static extern bool RegisterRawInputDevices([In] RAWINPUTDEVICE[] pRawInputDevices, uint uiNumDevices, uint cbSize);
 
         [DllImport("user32.dll", SetLastError = true)]
@@ -567,6 +581,12 @@ namespace ScreenLoop.Backend.Windows.Input
 
             protected override void WndProc(ref Message m)
             {
+                if (m.Msg == WM_APP_REFRESH_HOTKEYS)
+                {
+                    RegisterHotkeys();
+                    return;
+                }
+
                 if (m.Msg == WM_HOTKEY)
                 {
                     int id = m.WParam.ToInt32();
