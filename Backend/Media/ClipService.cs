@@ -80,10 +80,14 @@ namespace ScreenLoop.Backend.Media
                     return;
                 }
 
-                // Read per-segment audio track names and build union layout
-                bool anySegmentHasMutedTracks = segments.Any(s => s.MutedAudioTracks != null && s.MutedAudioTracks.Count > 0);
+                // Read per-segment audio track names and build union layout.
+                // Volume overrides count as well as mutes: without the source track names,
+                // ExtractClip cannot build the per-track filter and would silently drop them.
+                bool anySegmentHasAudioOverrides = segments.Any(s =>
+                    (s.MutedAudioTracks != null && s.MutedAudioTracks.Count > 0) ||
+                    (s.AudioTrackVolumes != null && s.AudioTrackVolumes.Any(v => Math.Abs(v.Value - 1.0) > 0.001)));
                 var perSegmentTrackNames = new List<List<string>?>();
-                if (Settings.Instance.ClipKeepSeparateAudioTracks || anySegmentHasMutedTracks)
+                if (Settings.Instance.ClipKeepSeparateAudioTracks || anySegmentHasAudioOverrides)
                 {
                     foreach (var seg in segments)
                         perSegmentTrackNames.Add(GetSourceAudioTrackNames(seg));
