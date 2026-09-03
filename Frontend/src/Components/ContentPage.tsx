@@ -226,20 +226,26 @@ export default function ContentPage({
       }
     };
 
+    // Always process the release, even behind a modal: otherwise opening one while
+    // Ctrl is held leaves the flag stuck on and every later click toggles selection.
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (isModalOpen) return;
-
       if (e.key === 'Control') {
         setIsCtrlPressed(false);
       }
     };
 
+    // The window never sees the keyup if focus leaves while Ctrl is held (alt-tab, or
+    // the OS taking focus for the folder picker), so clear the flag on blur too.
+    const handleBlur = () => setIsCtrlPressed(false);
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
     };
   }, [selectedItems, filteredItems, isModalOpen, handleDeleteSelected]);
 

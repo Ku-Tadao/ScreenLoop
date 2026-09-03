@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type SyntheticEvent } from 'react';
 import { VolumeX, Volume2 } from 'lucide-react';
 import { Settings as SettingsType } from '../../Models/types';
 
@@ -9,6 +9,14 @@ interface PreferencesSectionProps {
 
 export default function PreferencesSection({ settings, updateSettings }: PreferencesSectionProps) {
   const [draggingSoundVolume, setDraggingSoundVolume] = useState<number | null>(null);
+
+  // Committing only on mouseup left keyboard adjustment (arrow keys) pending forever,
+  // so the value snapped back and was never saved.
+  const commitSoundVolume = (event: SyntheticEvent<HTMLInputElement>) => {
+    if (draggingSoundVolume === null) return;
+    updateSettings({ soundEffectsVolume: parseFloat(event.currentTarget.value) });
+    setDraggingSoundVolume(null);
+  };
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
@@ -116,16 +124,10 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
                 setDraggingSoundVolume(parseFloat(e.target.value));
               }}
               onMouseDown={(e) => setDraggingSoundVolume(parseFloat(e.currentTarget.value))}
-              onMouseUp={(e) => {
-                updateSettings({ soundEffectsVolume: parseFloat(e.currentTarget.value) });
-                setDraggingSoundVolume(null);
-              }}
-              onTouchEnd={() => {
-                updateSettings({
-                  soundEffectsVolume: draggingSoundVolume ?? settings.soundEffectsVolume,
-                });
-                setDraggingSoundVolume(null);
-              }}
+              onMouseUp={commitSoundVolume}
+              onTouchEnd={commitSoundVolume}
+              onKeyUp={commitSoundVolume}
+              onBlur={commitSoundVolume}
               className="range range-xs range-primary w-26 [--range-fill:0]"
             />
             <Volume2 className="w-4 h-4 text-gray-400 shrink-0" />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type SyntheticEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TriangleAlert, X, CircleAlert } from 'lucide-react';
 import Button from '../Button';
@@ -100,6 +100,18 @@ export default function AudioDevicesSection({
     }
   };
 
+  // Writes the pending slider value back to settings and ends the drag.
+  const commitDeviceVolume = (
+    event: SyntheticEvent<HTMLInputElement>,
+    deviceId: string,
+    deviceType: 'input' | 'output',
+    isDragging: boolean,
+  ) => {
+    if (!isDragging) return;
+    handleVolumeChange(deviceId, parseFloat(event.currentTarget.value), deviceType);
+    setDraggingVolume({ deviceId: null, deviceType: null, volume: null });
+  };
+
   // Render device list component
   const renderDeviceList = (deviceType: 'input' | 'output') => {
     const isInput = deviceType === 'input';
@@ -159,14 +171,16 @@ export default function AudioDevicesSection({
                             : (selectedDevices.find((d) => d.id === device.id)?.volume ?? 1.0)
                         }
                         className="range range-xs range-primary [--range-fill:0]"
-                        onChange={(e) => {
-                          if (isDragging) {
-                            setDraggingVolume({
-                              ...draggingVolume,
-                              volume: parseFloat(e.target.value),
-                            });
-                          }
-                        }}
+                        // onChange starts the drag itself so keyboard adjustment works:
+                        // arrow keys never fire mousedown, so gating on it meant the value
+                        // snapped straight back and was never saved.
+                        onChange={(e) =>
+                          setDraggingVolume({
+                            deviceId: device.id,
+                            deviceType,
+                            volume: parseFloat(e.target.value),
+                          })
+                        }
                         onMouseDown={(e) =>
                           setDraggingVolume({
                             deviceId: device.id,
@@ -174,16 +188,9 @@ export default function AudioDevicesSection({
                             volume: parseFloat(e.currentTarget.value),
                           })
                         }
-                        onMouseUp={(e) => {
-                          if (isDragging) {
-                            handleVolumeChange(
-                              device.id,
-                              parseFloat(e.currentTarget.value),
-                              deviceType,
-                            );
-                            setDraggingVolume({ deviceId: null, deviceType: null, volume: null });
-                          }
-                        }}
+                        onMouseUp={(e) => commitDeviceVolume(e, device.id, deviceType, isDragging)}
+                        onKeyUp={(e) => commitDeviceVolume(e, device.id, deviceType, isDragging)}
+                        onBlur={(e) => commitDeviceVolume(e, device.id, deviceType, isDragging)}
                       />
                       <span className="text-xs w-8 text-right">
                         {Math.round(
