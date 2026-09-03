@@ -16,7 +16,6 @@ using ScreenLoop.Backend.Utils;
 using Serilog;
 using System.Diagnostics;
 using System.IO.Compression;
-using System.Text.RegularExpressions;
 using static ScreenLoop.Backend.Utils.GeneralUtils;
 using static ScreenLoop.Backend.App.MessageService;
 using System.Net.Http.Json;
@@ -30,22 +29,13 @@ using System.Threading.Channels;
 
 namespace ScreenLoop.Backend.Recorder
 {
-    public static partial class OBSService
+    public static class OBSService
     {
         // Constants
         private const uint OBS_SOURCE_FLAG_FORCE_MONO = 1u << 1; // from obs.h
 
-        // Regex patterns for buffer parsing
-        [GeneratedRegex(@"BufferDesc\.Width:\s*(\d+)")]
-        private static partial Regex BufferDescWidthRegex();
-
-        [GeneratedRegex(@"BufferDesc\.Height:\s*(\d+)")]
-        private static partial Regex BufferDescHeightRegex();
-
         // Public properties
         public static bool IsInitialized { get; private set; }
-        public static uint? CapturedWindowWidth { get; private set; } = null;
-        public static uint? CapturedWindowHeight { get; private set; } = null;
         public static string? InstalledOBSVersion { get; private set; } = null;
 
         // OBS context
@@ -53,7 +43,6 @@ namespace ScreenLoop.Backend.Recorder
 
         // OBS scene
         private static Scene? _mainScene;
-        private static SceneItem? _gameCaptureItem;
         private static SceneItem? _displayItem;
 
         // OBS output resources
@@ -61,20 +50,13 @@ namespace ScreenLoop.Backend.Recorder
         private static ReplayBuffer? _bufferOutput;
 
         // OBS source resources
-        public static GameCapture? GameCaptureSource { get; set; }
         private static MonitorCapture? _displaySource;
         private static readonly List<AudioInputCapture> _micSources = [];
         private static readonly List<AudioOutputCapture> _desktopSources = [];
-        private static Source? _discordAudioSource;
 
         // OBS encoder resources
         private static VideoEncoder? _videoEncoder;
         private static readonly List<AudioEncoder> _audioEncoders = [];
-
-        // Game capture state
-        private static string? _hookedExecutableFileName;
-        private static System.Threading.Timer? _gameCaptureHookTimeoutTimer = null;
-        private static bool _isStillHookedAfterUnhook = false;
 
         // Recording/output state
         private static bool _isStoppingOrStopped = false;
@@ -86,12 +68,6 @@ namespace ScreenLoop.Backend.Recorder
 
         // Signal connection for replay buffer saved event
         private static SignalConnection? _replaySavedConnection;
-
-        /// <summary>
-        /// Gets whether the game capture is currently hooked.
-        /// Uses the built-in IsHooked property from OBSKit.NET.
-        /// </summary>
-        private static bool IsGameCaptureHooked => GameCaptureSource?.IsHooked ?? false;
 
         // Threading primitives
         private static readonly SemaphoreSlim _stopRecordingSemaphore = new SemaphoreSlim(1, 1);
@@ -227,50 +203,6 @@ namespace ScreenLoop.Backend.Recorder
                 try
                 {
                     Log.Information($"{(ObsLogLevel)level}: {formattedMessage}");
-
-                    if (formattedMessage.Contains("capture window no longer exists, terminating capture"))
-                    {
-                        // Some games will show the "capture window no longer exists" message when they are still running, so we wait a second to make sure it's not a false positive
-                        Log.Information("Capture window no longer exists, waiting a second to make sure it's not a false positive.");
-                        await Task.Delay(1000);
-                        Log.Information("Checking if hook is still active: {_isStillHookedAfterUnhook}", _isStillHookedAfterUnhook);
-
-                        // Check if any output is still active
-                        if ((_output != null || _bufferOutput != null) && !_isStillHookedAfterUnhook)
-                        {
-                            Log.Information("Capture stopped. Stopping recording.");
-                            _ = Task.Run(StopRecording);
-                        }
-                        _isStillHookedAfterUnhook = false;
-                    }
-
-                    // This means the game is still running after unhooking. We need this to prevent the method above to accidentally stop the recording.
-                    if (formattedMessage.Contains("existing hook found"))
-                    {
-                        _isStillHookedAfterUnhook = true;
-                    }
-
-                    // Parse window dimensions from OBS game capture logs
-                    if (formattedMessage.Contains("BufferDesc.Width:"))
-                    {
-                        var match = BufferDescWidthRegex().Match(formattedMessage);
-                        if (match.Success && uint.TryParse(match.Groups[1].Value, out uint width))
-                        {
-                            CapturedWindowWidth = width;
-                            Log.Information($"Captured window width: {width}");
-                        }
-                    }
-
-                    if (formattedMessage.Contains("BufferDesc.Height:"))
-                    {
-                        var match = BufferDescHeightRegex().Match(formattedMessage);
-                        if (match.Success && uint.TryParse(match.Groups[1].Value, out uint height))
-                        {
-                            CapturedWindowHeight = height;
-                            Log.Information($"Captured window height: {height}");
-                        }
-                    }
-
                 }
                 catch (Exception e)
                 {
@@ -623,9 +555,6 @@ namespace ScreenLoop.Backend.Recorder
                 }
             }
 
-            var audioOutputMode = Settings.Instance.AudioOutputMode;
-
-            // Always add desktop audio sources - they serve as fallback until game hooks in GameOnly/GameAndDiscord modes
             if (Settings.Instance.OutputDevices != null && Settings.Instance.OutputDevices.Count > 0)
             {
                 foreach (var deviceSetting in Settings.Instance.OutputDevices)
@@ -647,53 +576,12 @@ namespace ScreenLoop.Backend.Recorder
                 }
             }
 
-            // In GameAndDiscord mode, also create Discord application audio capture (starts muted until game hooks)
-            if (audioOutputMode == AudioOutputMode.GameAndDiscord && GameCaptureSource != null)
-            {
-                try
-                {
-                    _discordAudioSource = new Source("wasapi_process_output_capture", "Discord Audio");
-                    _discordAudioSource.Update(s =>
-                    {
-                        // Window format: title:class:executable
-                        s.Set("window", "Discord:Chrome_WidgetWin_1:Discord.exe");
-                        s.Set("priority", 2); // WINDOW_PRIORITY_EXE
-                    });
-                    _discordAudioSource.IsMuted = true; // Muted until game hooks (desktop audio covers Discord until then)
-                    _mainScene!.AddSource(_discordAudioSource);
-                    Log.Information("Added Discord application audio capture source (muted until game hooks)");
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to create Discord audio capture source: {ex.Message}");
-                    _discordAudioSource = null;
-                }
-            }
-
             // Configure mixers and audio encoders based on setting.
             // If enabled: Track 1 = Full Mix, Tracks 2..6 = per-source isolated (up to 5 sources)
             // If disabled: Track 1 only (Full Mix)
-            // In GameOnly/GameAndDiscord modes, desktop sources are fallback-only (full mix only).
             var allAudioSources = new List<Source>();
             allAudioSources.AddRange(_micSources);
             allAudioSources.AddRange(_desktopSources);
-
-            if (audioOutputMode != AudioOutputMode.All && GameCaptureSource != null)
-            {
-                // Desktop sources are fallback-only: assign to full mix (Track 1) only, no separate tracks
-                foreach (var desktopSource in _desktopSources)
-                {
-                    try { desktopSource.AudioMixers = 1u << 0; }
-                    catch (Exception ex) { Log.Warning($"Failed to set mixer for fallback desktop source: {ex.Message}"); }
-                }
-
-                // Remove desktop sources from the list that gets separate tracks
-                allAudioSources = new List<Source>();
-                allAudioSources.AddRange(_micSources);
-                allAudioSources.Add(GameCaptureSource);
-                if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
-                    allAudioSources.Add(_discordAudioSource);
-            }
 
             // Build list of device names for encoder naming
             var audioDeviceNames = new List<string>();
@@ -702,19 +590,10 @@ namespace ScreenLoop.Backend.Recorder
                 foreach (var device in Settings.Instance.InputDevices.Where(d => !string.IsNullOrEmpty(d.Id)))
                     audioDeviceNames.Add(device.Name.Replace(" (Default)", "") ?? "Microphone");
             }
-            if (audioOutputMode == AudioOutputMode.All || GameCaptureSource == null)
+            if (Settings.Instance.OutputDevices != null)
             {
-                if (Settings.Instance.OutputDevices != null)
-                {
-                    foreach (var device in Settings.Instance.OutputDevices.Where(d => !string.IsNullOrEmpty(d.Id)))
-                        audioDeviceNames.Add(device.Name.Replace(" (Default)", "") ?? "Desktop Audio");
-                }
-            }
-            else
-            {
-                audioDeviceNames.Add("Game Audio");
-                if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
-                    audioDeviceNames.Add("Discord");
+                foreach (var device in Settings.Instance.OutputDevices.Where(d => !string.IsNullOrEmpty(d.Id)))
+                    audioDeviceNames.Add(device.Name.Replace(" (Default)", "") ?? "Desktop Audio");
             }
 
             bool separateTracks = Settings.Instance.EnableSeparateAudioTracks;
@@ -822,9 +701,6 @@ namespace ScreenLoop.Backend.Recorder
                 }
             }
 
-            // Overwrite the file name with the hooked executable name if using game hook
-            fileName = _hookedExecutableFileName ?? fileName;
-
             DateTime? startTime = null;
             bool hasPlayedStartSound = false;
 
@@ -878,7 +754,7 @@ namespace ScreenLoop.Backend.Recorder
                 FilePath = videoOutputPath,
                 FileName = fileName,
                 Pid = pid,
-                IsUsingGameHook = IsGameCaptureHooked,
+                IsUsingGameHook = false,
                 ExePath = exePath,
                 AudioTrackNames = actualAudioTrackNames
             };
@@ -957,8 +833,6 @@ namespace ScreenLoop.Backend.Recorder
                 GeneralUtils.SetProcessPriority(ProcessPriorityClass.Normal);
 
                 RecordingPreviewService.OnRecordingStopped();
-
-                StopGameCaptureHookTimeoutTimer();
 
                 bool isReplayBufferMode = Settings.Instance.RecordingMode == RecordingMode.Buffer;
                 bool isHybridMode = Settings.Instance.RecordingMode == RecordingMode.Hybrid;
@@ -1160,11 +1034,6 @@ namespace ScreenLoop.Backend.Recorder
 
                 await StorageService.EnsureStorageBelowLimit();
 
-                // Reset hooked executable file name and captured dimensions
-                _hookedExecutableFileName = null;
-                CapturedWindowWidth = null;
-                CapturedWindowHeight = null;
-
                 // Reset the recording and pre-recording
                 AppState.Instance.Recording = null;
                 AppState.Instance.PreRecording = null;
@@ -1172,86 +1041,6 @@ namespace ScreenLoop.Backend.Recorder
             finally
             {
                 _stopRecordingSemaphore.Release();
-            }
-        }
-
-        /// <summary>
-        /// Event handler for GameCapture.Hooked event.
-        /// </summary>
-        private static void OnGameCaptureHookedEvent(GameCapture capture)
-        {
-            try
-            {
-                // GameCapture now provides hooked info directly via its properties
-                string? title = capture.HookedWindowTitle?.Trim();
-                string? windowClass = capture.HookedWindowClass?.Trim();
-                string? executable = capture.HookedExecutable?.Trim();
-
-                // IsHooked is now managed by GameCapture automatically
-                StopGameCaptureHookTimeoutTimer();
-
-                Log.Information($"Game hooked: Title='{title}', Class='{windowClass}', Executable='{executable}'");
-
-                // Remove display capture to save resources while game is hooked
-                DisposeDisplaySource();
-
-                // Switch output audio: mute desktop sources and unmute game/discord sources
-                var audioOutputMode = Settings.Instance.AudioOutputMode;
-                if (audioOutputMode != AudioOutputMode.All)
-                {
-                    foreach (var desktopSource in _desktopSources)
-                    {
-                        try { desktopSource.IsMuted = true; }
-                        catch (Exception ex) { Log.Warning($"Failed to mute desktop source: {ex.Message}"); }
-                    }
-                    Log.Information("Muted desktop audio sources (game hooked, using capture_audio)");
-
-                    if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
-                    {
-                        try { _discordAudioSource.IsMuted = false; }
-                        catch (Exception ex) { Log.Warning($"Failed to unmute Discord source: {ex.Message}"); }
-                        Log.Information("Unmuted Discord audio source (game hooked)");
-                    }
-                }
-
-                if (AppState.Instance.Recording != null)
-                {
-                    AppState.Instance.Recording.IsUsingGameHook = true;
-                    _ = MessageService.SendStateToFrontend("Updated game hook");
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error processing OnGameCaptureHookedEvent");
-            }
-        }
-
-
-        /// <summary>
-        /// Event handler for GameCapture.Unhooked event.
-        /// </summary>
-        private static void OnGameCaptureUnhookedEvent(GameCapture capture)
-        {
-            // IsHooked is now managed by GameCapture automatically
-            Log.Information("Game unhooked.");
-
-            // Switch output audio back: unmute desktop sources and mute discord source
-            var audioOutputMode = Settings.Instance.AudioOutputMode;
-            if (audioOutputMode != AudioOutputMode.All)
-            {
-                foreach (var desktopSource in _desktopSources)
-                {
-                    try { desktopSource.IsMuted = false; }
-                    catch (Exception ex) { Log.Warning($"Failed to unmute desktop source: {ex.Message}"); }
-                }
-                Log.Information("Unmuted desktop audio sources (game unhooked, falling back to desktop audio)");
-
-                if (audioOutputMode == AudioOutputMode.GameAndDiscord && _discordAudioSource != null)
-                {
-                    try { _discordAudioSource.IsMuted = true; }
-                    catch (Exception ex) { Log.Warning($"Failed to mute Discord source: {ex.Message}"); }
-                    Log.Information("Muted Discord audio source (game unhooked)");
-                }
             }
         }
 
@@ -1300,12 +1089,10 @@ namespace ScreenLoop.Backend.Recorder
             }
 
             // Clear scene item references
-            _gameCaptureItem = null;
             _displayItem = null;
 
             // Now dispose sources
             DisposeDisplaySource();
-            DisposeGameCaptureSource();
 
             // Dispose mic sources
             foreach (var micSource in _micSources)
@@ -1334,104 +1121,6 @@ namespace ScreenLoop.Backend.Recorder
                 }
             }
             _desktopSources.Clear();
-
-            // Dispose Discord audio source
-            if (_discordAudioSource != null)
-            {
-                try
-                {
-                    _discordAudioSource.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to dispose Discord audio source: {ex.Message}");
-                }
-                _discordAudioSource = null;
-            }
-        }
-
-        public static void DisposeGameCaptureSource()
-        {
-            if (_gameCaptureItem != null)
-            {
-                try
-                {
-                    _gameCaptureItem.Remove();
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to remove game capture scene item: {ex.Message}");
-                }
-                _gameCaptureItem = null;
-            }
-
-            if (GameCaptureSource != null)
-            {
-                try
-                {
-                    // Unsubscribe from events
-                    GameCaptureSource.Hooked -= OnGameCaptureHookedEvent;
-                    GameCaptureSource.Unhooked -= OnGameCaptureUnhookedEvent;
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to unsubscribe from game capture events: {ex.Message}");
-                }
-
-                try
-                {
-                    GameCaptureSource.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to dispose game capture source: {ex.Message}");
-                }
-                GameCaptureSource = null;
-            }
-            // Dispose the timer if it exists
-            StopGameCaptureHookTimeoutTimer();
-        }
-
-        private static void StartGameCaptureHookTimeoutTimer()
-        {
-            // Dispose any existing timer first
-            StopGameCaptureHookTimeoutTimer();
-
-            // Create a new timer that checks after 90 seconds
-            _gameCaptureHookTimeoutTimer = new System.Threading.Timer(
-                CheckGameCaptureHookStatus,
-                null,
-                90000, // 90 seconds delay
-                Timeout.Infinite // Don't repeat
-            );
-
-            Log.Information("Started game capture hook timer (90 seconds)");
-        }
-
-        private static void StopGameCaptureHookTimeoutTimer()
-        {
-            if (_gameCaptureHookTimeoutTimer != null)
-            {
-                _gameCaptureHookTimeoutTimer.Dispose();
-                _gameCaptureHookTimeoutTimer = null;
-                Log.Information("Stopped game capture hook timer");
-            }
-        }
-
-        private static void CheckGameCaptureHookStatus(object? state)
-        {
-            // Check if game capture has hooked
-            if (!IsGameCaptureHooked)
-            {
-                Log.Warning("Game capture did not hook within 90 seconds. Removing game capture source.");
-                DisposeGameCaptureSource();
-            }
-            else
-            {
-                Log.Information("Game capture hook check completed. Hook status: {0}", IsGameCaptureHooked ? "Hooked" : "Not hooked");
-                // Just stop the timer without disposing the game capture source if it's hooked
-                StopGameCaptureHookTimeoutTimer();
-            }
         }
 
         public static void DisposeDisplaySource()
