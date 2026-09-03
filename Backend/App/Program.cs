@@ -181,7 +181,7 @@ namespace ScreenLoop.Backend.App
                             {
                                 // Set a short timeout since we're just checking if the server is running
                                 client.Timeout = TimeSpan.FromSeconds(1);
-                                var response = client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "http://127.0.0.1:2882/index.html")).Result;
+                                using var response = client.Send(new HttpRequestMessage(HttpMethod.Head, "http://127.0.0.1:2882/index.html"));
                             }
                             catch (Exception)
                             {

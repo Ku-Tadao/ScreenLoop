@@ -16,7 +16,7 @@ namespace ScreenLoop.Backend.Windows.Audio
             }
             else if (friendlyName.Contains("SteelSeries Sonar"))
             {
-                int index = friendlyName.IndexOf("(");
+                int index = friendlyName.IndexOf('(');
                 if (index > 0)
                 {
                     return friendlyName.Substring(0, index).Trim();

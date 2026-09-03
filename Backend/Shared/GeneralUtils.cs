@@ -246,21 +246,24 @@ namespace ScreenLoop.Backend.Utils
 
                     foreach (var gpu in gpus)
                     {
-                        string name = gpu["Name"]?.ToString()?.ToLower() ?? string.Empty;
+                        // Match case-insensitively rather than lowercasing first: under a
+                        // Turkish locale ToLower turns "INTEL" into "ıntel" and the check below
+                        // would never fire.
+                        string name = gpu["Name"]?.ToString() ?? string.Empty;
 
-                        if (name.Contains("nvidia"))
+                        if (name.Contains("nvidia", StringComparison.OrdinalIgnoreCase))
                         {
                             Log.Information($"Detected NVIDIA GPU: {gpu["Name"]}");
                             _cachedGpuVendor = GpuVendor.Nvidia;
                             return GpuVendor.Nvidia;
                         }
-                        else if (name.Contains("amd") || name.Contains("radeon") || name.Contains("ati"))
+                        else if (name.Contains("amd", StringComparison.OrdinalIgnoreCase) || name.Contains("radeon", StringComparison.OrdinalIgnoreCase) || name.Contains("ati", StringComparison.OrdinalIgnoreCase))
                         {
                             Log.Information($"Detected AMD GPU: {gpu["Name"]}");
                             _cachedGpuVendor = GpuVendor.AMD;
                             return GpuVendor.AMD;
                         }
-                        else if (name.Contains("intel"))
+                        else if (name.Contains("intel", StringComparison.OrdinalIgnoreCase))
                         {
                             Log.Information($"Detected Intel GPU: {gpu["Name"]}");
                             _cachedGpuVendor = GpuVendor.Intel;
@@ -283,21 +286,24 @@ namespace ScreenLoop.Backend.Utils
 
                     foreach (System.Management.ManagementObject gpu in allGpus)
                     {
-                        string name = gpu["Name"]?.ToString()?.ToLower() ?? string.Empty;
+                        // Match case-insensitively rather than lowercasing first: under a
+                        // Turkish locale ToLower turns "INTEL" into "ıntel" and the check below
+                        // would never fire.
+                        string name = gpu["Name"]?.ToString() ?? string.Empty;
 
-                        if (name.Contains("nvidia"))
+                        if (name.Contains("nvidia", StringComparison.OrdinalIgnoreCase))
                         {
                             Log.Information($"Detected NVIDIA GPU: {gpu["Name"]}");
                             _cachedGpuVendor = GpuVendor.Nvidia;
                             return GpuVendor.Nvidia;
                         }
-                        else if (name.Contains("amd") || name.Contains("radeon") || name.Contains("ati"))
+                        else if (name.Contains("amd", StringComparison.OrdinalIgnoreCase) || name.Contains("radeon", StringComparison.OrdinalIgnoreCase) || name.Contains("ati", StringComparison.OrdinalIgnoreCase))
                         {
                             Log.Information($"Detected AMD GPU: {gpu["Name"]}");
                             _cachedGpuVendor = GpuVendor.AMD;
                             return GpuVendor.AMD;
                         }
-                        else if (name.Contains("intel"))
+                        else if (name.Contains("intel", StringComparison.OrdinalIgnoreCase))
                         {
                             Log.Information($"Detected Intel GPU: {gpu["Name"]}");
                             _cachedGpuVendor = GpuVendor.Intel;

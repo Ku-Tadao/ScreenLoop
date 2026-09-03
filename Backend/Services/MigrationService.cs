@@ -221,10 +221,10 @@ internal static class MigrationService
         // 2) Generate waveform JSONs for each mp4 if missing
         foreach (Content.ContentType type in Enum.GetValues(typeof(Content.ContentType)))
         {
-            string typeFolder = Path.Combine(contentRoot, type.ToString().ToLower() + "s");
+            string typeFolder = Path.Combine(contentRoot, type.ToString().ToLowerInvariant() + "s");
             if (!Directory.Exists(typeFolder)) continue;
 
-            string targetWaveformFolder = Path.Combine(contentRoot, ".waveforms", type.ToString().ToLower() + "s");
+            string targetWaveformFolder = Path.Combine(contentRoot, ".waveforms", type.ToString().ToLowerInvariant() + "s");
             if (!Directory.Exists(targetWaveformFolder))
             {
                 var dir = Directory.CreateDirectory(targetWaveformFolder);
@@ -375,7 +375,7 @@ internal static class MigrationService
             // Migrate if user has old GPU-based quality presets (low, standard, or high)
             // Old presets used GPU encoder with vendor-specific presets
 
-            string qualityPreset = settings.ClipQualityPreset.ToLower();
+            string qualityPreset = settings.ClipQualityPreset.ToLowerInvariant();
             bool isOldQualityPreset = qualityPreset == "low" || qualityPreset == "standard" || qualityPreset == "high";
             bool isUsingGpuEncoder = settings.ClipEncoder.Equals("gpu", StringComparison.OrdinalIgnoreCase);
 
@@ -452,7 +452,7 @@ internal static class MigrationService
             // Process each content type
             foreach (Content.ContentType type in Enum.GetValues(typeof(Content.ContentType)))
             {
-                string typeName = type.ToString().ToLower() + "s";
+                string typeName = type.ToString().ToLowerInvariant() + "s";
                 string metadataFolder = Path.Combine(metadataRoot, typeName);
                 string videoFolder = Path.Combine(contentRoot, typeName);
 
