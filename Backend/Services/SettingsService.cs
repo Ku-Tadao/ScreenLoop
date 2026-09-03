@@ -192,6 +192,12 @@ namespace ScreenLoop.Backend.Services
                 Settings.Instance.ShowGameBackground = false;
                 Settings.Instance.EnableAi = false;
                 Settings.Instance.AutoGenerateHighlights = false;
+
+                // CreateBookmark only fires in Session/Hybrid mode, and RecordingMode is
+                // pinned to Buffer above, so the keybind can never fire. Drop it rather than
+                // offer a binding that silently does nothing.
+                Settings.Instance.Keybindings.RemoveAll(k => k.Action == KeybindAction.CreateBookmark);
+
                 AppState.Instance.GpuVendor = GeneralUtils.DetectGpuVendor();
                 if (AppState.Instance.GpuVendor == GeneralUtils.GpuVendor.Nvidia)
                 {
@@ -371,6 +377,7 @@ namespace ScreenLoop.Backend.Services
             updatedSettings.ShowGameBackground = false;
             updatedSettings.EnableAi = false;
             updatedSettings.AutoGenerateHighlights = false;
+            updatedSettings.Keybindings?.RemoveAll(k => k.Action == KeybindAction.CreateBookmark);
 
             // Update ShowGameBackground
             if (settings.ShowGameBackground != updatedSettings.ShowGameBackground)
