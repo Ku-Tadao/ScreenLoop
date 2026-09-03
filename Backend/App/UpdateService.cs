@@ -76,7 +76,7 @@ namespace ScreenLoop.Backend.App
                 Log.Information($"Installing update to version {targetVersion}");
                 await UpdateManager.DownloadUpdatesAsync(
                     newVersion,
-                    progress => SendUpdateProgressToFrontend(targetVersion, progress)
+                    progress => { _ = SendUpdateProgressToFrontend(targetVersion, progress); }
                 );
 
                 // Notify frontend that update is ready to install
@@ -102,9 +102,9 @@ namespace ScreenLoop.Backend.App
         public static void ApplyUpdate()
         {
             Log.Information("Applying update");
-            if (UpdateManager == null || LatestUpdateInfo == null)
+            if (LatestUpdateInfo == null)
             {
-                Log.Warning("UpdateManager or LatestUpdateInfo is null, cannot apply update");
+                Log.Warning("No update info available, cannot apply update");
                 return;
             }
 
@@ -130,7 +130,7 @@ namespace ScreenLoop.Backend.App
         }
 
         // Helper method to send progress updates to the frontend
-        public static async void SendUpdateProgressToFrontend(string version, int progress)
+        public static async Task SendUpdateProgressToFrontend(string version, int progress)
         {
             try
             {
@@ -165,7 +165,7 @@ namespace ScreenLoop.Backend.App
                 UpdateManager = new UpdateManager(useBetaChannel ? BetaSource : Source);
                 var current = UpdateManager.CurrentVersion;
 
-                if (current == null || UpdateManager == null)
+                if (current == null)
                 {
                     Log.Warning("Force reinstall aborted: not an installed build (no CurrentVersion).");
                     return false;
@@ -202,7 +202,7 @@ namespace ScreenLoop.Backend.App
 
                 await UpdateManager.DownloadUpdatesAsync(
                     updateInfo,
-                    progress => SendUpdateProgressToFrontend(targetVersion, progress),
+                    progress => { _ = SendUpdateProgressToFrontend(targetVersion, progress); },
                     ct);
 
                 LatestUpdateInfo = updateInfo;
@@ -236,10 +236,9 @@ namespace ScreenLoop.Backend.App
                 }
                 else
                 {
-                    // Running in local development, uncomment the line bellow and comment out the return to test
+                    // Not an installed build (local development): fall back to a placeholder
+                    // so the release-notes list still renders.
                     currentVersion = NuGet.Versioning.SemanticVersion.Parse("0.6.6");
-                    //Log.Error("Could not get current version");
-                    //return; 
                 }
 
                 Log.Information($"Current version: {currentVersion}");
