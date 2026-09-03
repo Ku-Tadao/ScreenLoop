@@ -72,6 +72,12 @@ namespace ScreenLoop.Backend.App
                 using var jsonDoc = JsonDocument.Parse(message);
                 var root = jsonDoc.RootElement;
 
+                // A JsonElement borrows the JsonDocument's pooled buffer, which is returned
+                // when this method exits. Anything handed to a fire-and-forget task therefore
+                // needs a detached copy, or it reads a recycled buffer once the task resumes.
+                JsonElement CloneParameters() =>
+                    root.TryGetProperty("Parameters", out var parameters) ? parameters.Clone() : default;
+
                 if (root.TryGetProperty("Method", out JsonElement methodElement))
                 {
                     string? method = methodElement.GetString();
@@ -111,15 +117,15 @@ namespace ScreenLoop.Backend.App
                             }
                             break;
                         case "CreateClip":
-                            root.TryGetProperty("Parameters", out JsonElement clipParameterElement);
-                            _ = Task.Run(() => HandleCreateClip(clipParameterElement));
+                            var clipParameters = CloneParameters();
+                            _ = Task.Run(() => HandleCreateClip(clipParameters));
                             break;
                         case "CreateAiClip":
                             Log.Information("CreateAiClip ignored because cloud highlight generation has been removed.");
                             break;
                         case "CompressVideo":
-                            root.TryGetProperty("Parameters", out JsonElement compressParameterElement);
-                            _ = Task.Run(() => HandleCompressVideo(compressParameterElement));
+                            var compressParameters = CloneParameters();
+                            _ = Task.Run(() => HandleCompressVideo(compressParameters));
                             break;
                         case "ApplyUpdate":
                             UpdateService.ApplyUpdate();
@@ -136,16 +142,16 @@ namespace ScreenLoop.Backend.App
                             Log.Information("{Method} ignored because game detection has been removed.", method);
                             break;
                         case "DeleteContent":
-                            root.TryGetProperty("Parameters", out JsonElement deleteContentParameterElement);
-                            _ = Task.Run(() => HandleDeleteContent(deleteContentParameterElement));
+                            var deleteContentParameters = CloneParameters();
+                            _ = Task.Run(() => HandleDeleteContent(deleteContentParameters));
                             break;
                         case "DeleteMultipleContent":
-                            root.TryGetProperty("Parameters", out JsonElement deleteMultipleContentParameterElement);
-                            _ = Task.Run(() => HandleDeleteMultipleContent(deleteMultipleContentParameterElement));
+                            var deleteMultipleContentParameters = CloneParameters();
+                            _ = Task.Run(() => HandleDeleteMultipleContent(deleteMultipleContentParameters));
                             break;
                         case "ToggleFavorite":
-                            root.TryGetProperty("Parameters", out JsonElement favoriteParameterElement);
-                            _ = Task.Run(() => ContentService.ToggleFavorite(favoriteParameterElement));
+                            var favoriteParameters = CloneParameters();
+                            _ = Task.Run(() => ContentService.ToggleFavorite(favoriteParameters));
                             break;
                         case "UploadContent":
                             Log.Information("UploadContent ignored because ScreenLoop is local-only.");
@@ -306,18 +312,18 @@ namespace ScreenLoop.Backend.App
                             Log.Information("RenameContent command received.");
                             break;
                         case "ImportFile":
-                            root.TryGetProperty("Parameters", out JsonElement importParameterElement);
-                            _ = Task.Run(() => ImportService.HandleImportFile(importParameterElement));
+                            var importParameters = CloneParameters();
+                            _ = Task.Run(() => ImportService.HandleImportFile(importParameters));
                             Log.Information("ImportFile command received.");
                             break;
                         case "StorageWarningConfirm":
-                            root.TryGetProperty("Parameters", out JsonElement storageWarningParameterElement);
-                            _ = Task.Run(() => StorageWarningService.HandleStorageWarningConfirm(storageWarningParameterElement));
+                            var storageWarningParameters = CloneParameters();
+                            _ = Task.Run(() => StorageWarningService.HandleStorageWarningConfirm(storageWarningParameters));
                             Log.Information("StorageWarningConfirm command received.");
                             break;
                         case "RecoveryConfirm":
-                            root.TryGetProperty("Parameters", out JsonElement recoveryParameterElement);
-                            _ = Task.Run(() => RecoveryService.HandleRecoveryConfirm(recoveryParameterElement));
+                            var recoveryParameters = CloneParameters();
+                            _ = Task.Run(() => RecoveryService.HandleRecoveryConfirm(recoveryParameters));
                             Log.Information("RecoveryConfirm command received.");
                             break;
                         case "ApplyVideoPreset":
