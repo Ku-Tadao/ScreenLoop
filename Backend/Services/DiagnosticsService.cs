@@ -367,7 +367,7 @@ namespace ScreenLoop.Backend.Services
                 Log.Information("PreRecording: <none>");
 
             if (AppState.Instance.Recording != null)
-                Log.Information($"Recording: game={AppState.Instance.Recording.Game}, startTime={AppState.Instance.Recording.StartTime:O}, hook={AppState.Instance.Recording.IsUsingGameHook}, pid={AppState.Instance.Recording.Pid?.ToString() ?? "<none>"}");
+                Log.Information($"Recording: game={AppState.Instance.Recording.Game}, startTime={AppState.Instance.Recording.StartTime:O}, pid={AppState.Instance.Recording.Pid?.ToString() ?? "<none>"}");
             else
                 Log.Information("Recording: <none>");
 

@@ -754,7 +754,6 @@ namespace ScreenLoop.Backend.Recorder
                 FilePath = videoOutputPath,
                 FileName = fileName,
                 Pid = pid,
-                IsUsingGameHook = false,
                 ExePath = exePath,
                 AudioTrackNames = actualAudioTrackNames
             };

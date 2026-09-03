@@ -1059,9 +1059,6 @@ namespace ScreenLoop.Backend.Core.Models
         [JsonPropertyName("pid")]
         public int? Pid { get; set; }
 
-        [JsonPropertyName("isUsingGameHook")]
-        public bool IsUsingGameHook { get; set; }
-
         [JsonPropertyName("exePath")]
         public string? ExePath { get; set; }
 

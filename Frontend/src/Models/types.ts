@@ -92,7 +92,6 @@ export interface Recording {
   startTime: Date;
   endTime: Date;
   game: string;
-  isUsingGameHook: boolean;
   coverImageId?: string;
 }
 

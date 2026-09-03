@@ -694,8 +694,8 @@ namespace ScreenLoop.Backend.Services
                 Log.Information($"SelectedDisplay changed from '{settings.SelectedDisplay}' to '{updatedSettings.SelectedDisplay}'");
                 settings.SelectedDisplay = updatedSettings.SelectedDisplay;
 
-                // Update display source if we have a recording and it is not using game hook
-                if (AppState.Instance.Recording != null && !AppState.Instance.Recording.IsUsingGameHook)
+                // Update display source if we have a recording
+                if (AppState.Instance.Recording != null)
                 {
                     OBSService.DisposeDisplaySource();
                     OBSService.AddMonitorCapture();
