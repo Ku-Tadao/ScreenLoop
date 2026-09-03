@@ -13,7 +13,7 @@ import UnavailableDeviceCard from './Components/UnavailableDeviceCard';
 import AnimatedCard from './Components/AnimatedCard';
 import { Clapperboard, Settings, History, Play, LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useRef, useLayoutEffect, useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import Button from './Components/Button';
 import { MenuItemId, DEFAULT_MENU_ITEMS, menuItemHasContent } from './Models/types';
 import { useWebSocketContext } from './Context/WebSocketContext';
@@ -40,9 +40,6 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
   const { isConnected } = useWebSocketContext();
   const [buttonCooldown, setButtonCooldown] = useState(false);
 
-  const buttonRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const [indicatorPosition, setIndicatorPosition] = useState({ top: 12 });
-
   const visibleMenuItems = useMemo(() => {
     const items =
       settings.menuItems && settings.menuItems.length > 0 ? settings.menuItems : DEFAULT_MENU_ITEMS;
@@ -52,27 +49,6 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
         item.id === 'Settings' || item.visible || menuItemHasContent(item.id, appState.content),
     );
   }, [settings.menuItems, appState.content]);
-
-  const computeIndicatorPosition = useCallback(() => {
-    if (!visibleMenuItems.some((item) => item.id === selectedMenu)) return;
-    const rowEl = buttonRefs.current[selectedMenu];
-    if (!rowEl) return;
-    const buttonEl = rowEl.firstElementChild as HTMLElement | null;
-    const buttonHeight = buttonEl?.offsetHeight || 48;
-    const indicatorTop = rowEl.offsetTop + buttonHeight / 2 - 20;
-    setIndicatorPosition({ top: indicatorTop });
-  }, [selectedMenu, visibleMenuItems]);
-
-  useLayoutEffect(() => {
-    // Skip while the active row is mid-exit (App.tsx will redirect selectedMenu to a
-    // fallback on the next tick). Otherwise we'd read a stale layout for one frame.
-    computeIndicatorPosition();
-    // After the row enter/exit animation finishes (200ms), recompute. Showing a row
-    // grows its height over the animation window so rows below settle into their final
-    // offsetTop only at the end — this second pass corrects the indicator to match.
-    const timeoutId = setTimeout(computeIndicatorPosition, 220);
-    return () => clearTimeout(timeoutId);
-  }, [computeIndicatorPosition]);
 
   const hasUnavailableDevices = () => {
     const unavailableInput = settings.inputDevices.some(
@@ -115,8 +91,6 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
       </div>
       {/* Menu Items */}
       <div className="relative flex shrink-0 flex-col gap-1 px-2 py-4 text-left">
-        {/* Selection indicator rectangle */}
-        <div className="hidden" style={{ top: `${indicatorPosition.top}px` }} />
         <AnimatePresence initial={false} mode="popLayout">
           {visibleMenuItems.map(({ id }) => {
             const Icon = MENU_ICONS[id];
@@ -140,9 +114,6 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
             return (
               <motion.div
                 key={id}
-                ref={(el) => {
-                  buttonRefs.current[id] = el;
-                }}
                 layout
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
