@@ -37,6 +37,8 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
       if (!raw) return null;
       const cached = JSON.parse(raw);
+      // Older builds cached an auth object holding a JWT and refresh token. The
+      // backend no longer has one, so scrub any that a previous version left behind.
       delete cached.auth;
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(cached));
       return { ...initialSettings, ...cached };
@@ -86,9 +88,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     const handleWebSocketMessage = (event: CustomEvent<any>) => {
       const data = event.detail;
       if (data.method === 'Settings') {
-        const safeSettings = { ...data.content };
-        delete safeSettings.auth;
-        updateSettings(safeSettings, true);
+        updateSettings({ ...data.content }, true);
       }
     };
 

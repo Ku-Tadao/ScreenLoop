@@ -55,7 +55,6 @@ namespace ScreenLoop.Backend.Core.Models
         private List<Keybind> _keybindings;
         private List<Game> _whitelist = new List<Game>();
         private List<Game> _blacklist = new List<Game>();
-        private Auth _auth = new Auth();
         private bool _clipClearSegmentsAfterCreatingClip = false;
         private bool _clipShowInBrowserAfterUpload = false;
         private string _clipEncoder = "cpu";
@@ -513,16 +512,6 @@ namespace ScreenLoop.Backend.Core.Models
                 {
                     _inputNoiseSuppression = value;
                 }
-            }
-        }
-
-        [JsonPropertyName("auth")]
-        public Auth Auth
-        {
-            get => _auth;
-            set
-            {
-                _auth = value;
             }
         }
 
@@ -1164,55 +1153,6 @@ namespace ScreenLoop.Backend.Core.Models
         public override int GetHashCode()
         {
             return (Id + Name).GetHashCode();
-        }
-    }
-
-    // Auth class for storing authentication tokens
-    internal class Auth
-    {
-        private string _jwt = string.Empty;
-        private string _refreshToken = string.Empty;
-
-        // Both setters compare against their own backing field. Reading back through
-        // Settings.Instance would throw while the singleton is still being constructed,
-        // and it answers the wrong question once this instance is a deserialized copy.
-        [JsonPropertyName("jwt")]
-        public string Jwt
-        {
-            get => _jwt;
-            set
-            {
-                if (_jwt == value)
-                    return;
-
-                _jwt = value;
-                if (Settings.Instance != null && !Settings.Instance._isBulkUpdating)
-                {
-                    SettingsService.SaveSettings();
-                }
-            }
-        }
-
-        [JsonPropertyName("refreshToken")]
-        public string RefreshToken
-        {
-            get => _refreshToken;
-            set
-            {
-                if (_refreshToken == value)
-                    return;
-
-                _refreshToken = value;
-                if (Settings.Instance != null && !Settings.Instance._isBulkUpdating)
-                {
-                    SettingsService.SaveSettings();
-                }
-            }
-        }
-
-        public bool HasCredentials()
-        {
-            return !string.IsNullOrEmpty(_jwt) && !string.IsNullOrEmpty(_refreshToken);
         }
     }
 
