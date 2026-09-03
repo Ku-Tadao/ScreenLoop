@@ -1005,7 +1005,7 @@ namespace ScreenLoop.Backend.Services
         {
             // Check if the file is a metadata file
             return Path.GetExtension(filePath).Equals(".json", StringComparison.OrdinalIgnoreCase) &&
-                   !Path.GetFileName(filePath).StartsWith(".");
+                   !Path.GetFileName(filePath).StartsWith('.');
         }
 
         public static void SetAvailableOBSVersions(List<Core.Models.OBSVersion> versions)

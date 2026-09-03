@@ -179,9 +179,13 @@ namespace ScreenLoop.Backend.Services
 
                     if (!File.Exists(metadataFile))
                     {
-                        // Detect game from parent folder name (e.g., "Full Sessions/PUBG/video.mp4" -> "PUBG")
+                        // Detect game from parent folder name (e.g., "Full Sessions/PUBG/video.mp4" -> "PUBG").
+                        // Both sides are normalized first: Directory.GetFiles returns platform
+                        // separators while videoFolder uses this app's forward slashes, so an
+                        // unnormalized comparison never matches and a file sitting directly in the
+                        // type folder would be labelled with the folder's own name as its game.
                         string? folderGame = null;
-                        string? parentDir = Path.GetDirectoryName(videoFile);
+                        string? parentDir = PathUtils.NormalizeOrNull(Path.GetDirectoryName(videoFile));
                         if (parentDir != null && !string.Equals(parentDir, videoFolder, StringComparison.OrdinalIgnoreCase))
                         {
                             string folderName = Path.GetFileName(parentDir);
