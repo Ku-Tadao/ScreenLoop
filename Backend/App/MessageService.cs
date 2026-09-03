@@ -173,10 +173,22 @@ namespace ScreenLoop.Backend.App
                                 {
                                     var thread = new Thread(() =>
                                     {
-                                        var files = new System.Collections.Specialized.StringCollection();
-                                        files.Add(clipboardFilePath);
-                                        System.Windows.Forms.Clipboard.SetFileDropList(files);
-                                    });
+                                        try
+                                        {
+                                            var files = new System.Collections.Specialized.StringCollection();
+                                            files.Add(clipboardFilePath);
+                                            System.Windows.Forms.Clipboard.SetFileDropList(files);
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            // Another process can hold the clipboard open; an escaping
+                                            // exception on this thread would take the app down with it.
+                                            Log.Warning(ex, "Failed to copy {FilePath} to the clipboard", clipboardFilePath);
+                                        }
+                                    })
+                                    {
+                                        IsBackground = true
+                                    };
                                     thread.SetApartmentState(ApartmentState.STA);
                                     thread.Start();
                                 }
