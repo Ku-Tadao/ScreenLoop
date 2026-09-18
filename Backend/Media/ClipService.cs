@@ -274,103 +274,13 @@ namespace ScreenLoop.Backend.Media
             }
         }
 
-        private static bool UseClipTargetBitrate(Settings settings)
-        {
-            return settings.ClipVideoBitrate > 0;
-        }
-
-        private static string GetClipBitrateArgs(Settings settings)
-        {
-            if (!UseClipTargetBitrate(settings))
-                return "";
-
-            int kbps = Math.Clamp(settings.ClipVideoBitrate, 100, 100000);
-            return $"-b:v {kbps}k";
-        }
-
         private static async Task ExtractClip(int clipId, string inputFilePath, string outputFilePath, double startTime, double endTime,
                             List<string>? audioTrackNames, List<int>? mutedAudioTracks, Dictionary<int, double>? audioTrackVolumes, List<string>? targetAudioLayout, Action<double> progressCallback)
         {
             double duration = endTime - startTime;
             var settings = Settings.Instance;
 
-            string videoCodec;
-            string qualityArgs;
-            string presetArgs;
-            string bitrateArgs = GetClipBitrateArgs(settings);
-            bool useTargetBitrate = UseClipTargetBitrate(settings);
-            if (settings.ClipEncoder.Equals("gpu", StringComparison.OrdinalIgnoreCase))
-            {
-                // GPU encoder uses hardware-accelerated codecs based on GPU vendor
-                GpuVendor gpuVendor = DetectGpuVendor();
-
-                switch (gpuVendor)
-                {
-                    case GpuVendor.Nvidia:
-                        if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                            videoCodec = "hevc_nvenc";
-                        else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
-                            videoCodec = "av1_nvenc";
-                        else
-                            videoCodec = "h264_nvenc";
-
-                        qualityArgs = useTargetBitrate ? "" : $"-cq {settings.ClipQualityGpu}";
-                        presetArgs = $"-preset {settings.ClipPreset}";
-                        break;
-
-                    case GpuVendor.AMD:
-                        if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                            videoCodec = "hevc_amf";
-                        else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
-                            videoCodec = "av1_amf";
-                        else
-                            videoCodec = "h264_amf";
-
-                        qualityArgs = useTargetBitrate ? "" : $"-rc cqp -qp_i {settings.ClipQualityGpu} -qp_p {settings.ClipQualityGpu}";
-                        // Frontend sends AMD AMF usage modes directly: quality, transcoding, lowlatency, ultralowlatency
-                        presetArgs = $"-usage {settings.ClipPreset}";
-                        break;
-
-                    case GpuVendor.Intel:
-                        if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                            videoCodec = "hevc_qsv";
-                        else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
-                            videoCodec = "av1_qsv";
-                        else
-                            videoCodec = "h264_qsv";
-
-                        qualityArgs = useTargetBitrate ? "" : $"-global_quality {settings.ClipQualityGpu}";
-                        presetArgs = $"-preset {settings.ClipPreset}";
-                        break;
-
-                    default:
-                        // Fall back to CPU encoding if GPU vendor is unknown
-                        Log.Warning("Unknown GPU vendor detected, falling back to CPU encoding");
-                        if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                            videoCodec = "libx265";
-                        else
-                            videoCodec = "libx264";
-
-                        qualityArgs = useTargetBitrate ? "" : $"-crf {settings.ClipQualityCpu}";
-                        presetArgs = $"-preset {settings.ClipPreset}";
-                        break;
-                }
-            }
-            else
-            {
-                // CPU encoder uses software codecs
-                if (settings.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                    videoCodec = "libx265";
-                else if (settings.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
-                    videoCodec = "libsvtav1";
-                else
-                    videoCodec = "libx264";
-
-                qualityArgs = useTargetBitrate ? "" : $"-crf {settings.ClipQualityCpu}";
-                presetArgs = videoCodec.Equals("libsvtav1", StringComparison.OrdinalIgnoreCase)
-                    ? $"-preset {EncodingArgs.MapSvtAv1Preset(settings.ClipPreset)}"
-                    : $"-preset {settings.ClipPreset}";
-            }
+            string videoCodecArgs = EncodingArgs.GetVideoCodecArgs(settings, DetectGpuVendor());
 
             string fpsArg = settings.ClipFps > 0 ? $"-r {settings.ClipFps}" : "";
 
@@ -626,7 +536,7 @@ namespace ScreenLoop.Backend.Media
             string audioRateArg = targetAudioLayout != null ? "-ar 48000 " : "";
             string audioCodecArgs = EncodingArgs.GetAudioCodecArgs(settings);
             string arguments = $"-y {verboseFlag}-ss {startTime.ToString(CultureInfo.InvariantCulture)} -t {duration.ToString(CultureInfo.InvariantCulture)} " +
-                             $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {bitrateArgs} {fpsArg} " +
+                             $"-i \"{inputFilePath}\" {extraInputArgs}{filterArgs}{mapArgs}{videoCodecArgs} {fpsArg} " +
                              $"{videoFilterArgs}{audioCodecArgs} {audioRateArg}{metadataArgs}-t {duration.ToString(CultureInfo.InvariantCulture)} -movflags +faststart \"{outputFilePath}\"";
             Log.Information("Extracting clip");
             Log.Information($"FFmpeg arguments: {arguments}");

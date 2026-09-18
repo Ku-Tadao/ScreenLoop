@@ -73,7 +73,7 @@ const getActionLabel = (action: KeybindAction): string => {
     case KeybindAction.SaveReplayBuffer:
       return 'Save Replay Buffer';
     case KeybindAction.ToggleRecording:
-      return 'Start / Stop Display Recording';
+      return 'Start / stop full recording';
     case KeybindAction.TogglePreview:
       return 'Toggle Recording Preview';
     default:
@@ -140,12 +140,12 @@ export default function KeybindingsSection({ settings, updateSettings }: Keybind
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
-      <h2 className="text-xl font-semibold mb-4">Keybindings</h2>
+      <h2 className="text-xl font-semibold mb-4">Keyboard shortcuts</h2>
       <div className="space-y-2">
         {settings.keybindings.map((keybind, index) => (
           <div
             key={index}
-            className="flex items-center justify-between bg-base-200 rounded-lg py-2 px-3 border border-base-400 w-1/2"
+            className="flex items-center justify-between bg-base-200 rounded-lg py-2 px-3 border border-base-400 w-full max-w-2xl"
           >
             <label className="flex items-center gap-3 cursor-pointer">
               <input

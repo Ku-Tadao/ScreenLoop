@@ -118,7 +118,11 @@ export default function AudioDevicesSection({
     const selectedDevices = isInput ? settings.inputDevices : settings.outputDevices;
     const availableDevices = isInput ? appState.inputDevices : appState.outputDevices;
 
-    const defaultDevice: AudioDevice = { id: 'default', name: 'Default Device', isDefault: false };
+    const defaultDevice: AudioDevice = {
+      id: 'default',
+      name: isInput ? 'Follow Windows default input' : 'Follow Windows default output',
+      isDefault: false,
+    };
     const allDevices = [defaultDevice, ...availableDevices];
 
     return (
@@ -291,7 +295,7 @@ export default function AudioDevicesSection({
   };
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
-      <h2 className="text-xl font-semibold mb-4">Input/Output Devices</h2>
+      <h2 className="text-xl font-semibold mb-4">Recorded audio</h2>
 
       <div className="mb-4 flex flex-col gap-2">
         <label className="cursor-pointer flex items-center">
@@ -302,15 +306,15 @@ export default function AudioDevicesSection({
             onChange={(e) => updateSettings({ enableSeparateAudioTracks: e.target.checked })}
             className="checkbox checkbox-sm checkbox-accent"
           />
-          <span className="ml-2">Separate Audio Tracks</span>
+          <span className="ml-2">Record each audio source on a separate track</span>
         </label>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        {/* Input Devices (Multiple Selection) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Microphones and audio inputs (Multiple Selection) */}
         <div className="form-control">
           <label className="label">
-            <span className="label-text text-base-content">Input Devices</span>
+            <span className="label-text text-base-content">Microphones and audio inputs</span>
           </label>
           <div className="bg-base-200 rounded-lg p-2 max-h-48 overflow-y-visible overflow-x-hidden border border-base-400 min-h-12.5">
             {renderDeviceList('input')}
@@ -325,7 +329,7 @@ export default function AudioDevicesSection({
                 onChange={(e) => updateSettings({ inputNoiseSuppression: e.target.checked })}
                 className="checkbox checkbox-sm checkbox-accent"
               />
-              <span className="ml-2">Noise Suppression</span>
+              <span className="ml-2">Reduce microphone noise</span>
             </label>
             <label className="cursor-pointer flex items-center">
               <input
@@ -335,21 +339,21 @@ export default function AudioDevicesSection({
                 onChange={(e) => updateSettings({ forceMonoInputSources: e.target.checked })}
                 className="checkbox checkbox-sm checkbox-accent"
               />
-              <span className="ml-2">Force Mono</span>
+              <span className="ml-2">Record microphones in mono</span>
             </label>
           </div>
         </div>
 
-        {/* Output Devices (Multiple Selection) */}
+        {/* Speakers and system audio (Multiple Selection) */}
         <div className="form-control">
           <label className="label">
-            <span className="label-text text-base-content">Output Devices</span>
+            <span className="label-text text-base-content">Speakers and system audio</span>
           </label>
           <div className="bg-base-200 rounded-lg p-2 max-h-48 overflow-y-visible overflow-x-hidden border border-base-400 min-h-12.5">
             {renderDeviceList('output')}
           </div>
           <div className="mt-2 text-xs text-base-content/60 leading-snug">
-            Output devices are recorded as all PC audio.
+            Records all sound playing through each selected output device.
           </div>
         </div>
       </div>

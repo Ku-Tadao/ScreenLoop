@@ -20,7 +20,7 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
-      <h2 className="text-xl font-semibold mb-4">Preferences</h2>
+      <h2 className="text-xl font-semibold mb-4">Startup and playback</h2>
       <div className="bg-base-200 px-4 py-3 rounded-lg space-y-3 border border-custom">
         <div className="flex items-center">
           <label className="flex items-center gap-2">
@@ -31,33 +31,7 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
               onChange={(e) => updateSettings({ runOnStartup: e.target.checked })}
               className="checkbox checkbox-primary checkbox-sm"
             />
-            <span className="cursor-pointer">Run on Startup</span>
-          </label>
-        </div>
-
-        <div className="flex items-center">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="alwaysRecord"
-              checked={settings.alwaysRecord}
-              onChange={(e) => updateSettings({ alwaysRecord: e.target.checked })}
-              className="checkbox checkbox-primary checkbox-sm"
-            />
-            <span className="cursor-pointer">Always record in the background</span>
-          </label>
-        </div>
-
-        <div className="flex items-center">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="removeOriginalAfterCompression"
-              checked={settings.removeOriginalAfterCompression}
-              onChange={(e) => updateSettings({ removeOriginalAfterCompression: e.target.checked })}
-              className="checkbox checkbox-primary checkbox-sm"
-            />
-            <span className="cursor-pointer">Delete Original File After Compression</span>
+            <span className="cursor-pointer">Start ScreenLoop with Windows</span>
           </label>
         </div>
 
@@ -70,22 +44,7 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
               onChange={(e) => updateSettings({ showAudioWaveformInTimeline: e.target.checked })}
               className="checkbox checkbox-primary checkbox-sm"
             />
-            <span className="cursor-pointer">Show Audio Waveform in Video Timeline</span>
-          </label>
-        </div>
-
-        <div className="flex items-center">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="discardSessionsWithoutBookmarks"
-              checked={settings.discardSessionsWithoutBookmarks}
-              onChange={(e) =>
-                updateSettings({ discardSessionsWithoutBookmarks: e.target.checked })
-              }
-              className="checkbox checkbox-primary checkbox-sm"
-            />
-            <span className="cursor-pointer">Discard Full Recordings Without Manual Bookmarks</span>
+            <span className="cursor-pointer">Show audio waveforms in the player timeline</span>
           </label>
         </div>
 
@@ -100,14 +59,14 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
             />
             <span className="flex items-center gap-1 cursor-pointer">
               Show<span className="badge badge-primary badge-sm text-base-300 mx-1">NEW</span>
-              Badge on New Sessions and Replay Buffers
+              badge on new recordings and replay buffers
             </span>
           </label>
         </div>
 
         <div className="pt-3 border-t border-custom">
           <span className="text-md mb-2 block">
-            Sound Effects Volume
+            App sound effects volume
             {draggingSoundVolume !== null && ` (${Math.round(draggingSoundVolume * 100)}%)`}
           </span>
           <div className="flex items-center gap-3">

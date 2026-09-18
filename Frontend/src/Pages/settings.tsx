@@ -10,14 +10,15 @@ import PreferencesSection from '../Components/Settings/PreferencesSection';
 import MenuCustomizationSection from '../Components/Settings/MenuCustomizationSection';
 import AdvancedSection from '../Components/Settings/AdvancedSection';
 
-type SectionId = 'recording' | 'clips' | 'storage' | 'preferences' | 'advanced';
+type SectionId = 'recording' | 'audio' | 'clips' | 'storage' | 'preferences' | 'advanced';
 
 const NAV_ITEMS: { id: SectionId; label: string }[] = [
   { id: 'recording', label: 'Recording' },
-  { id: 'clips', label: 'Clips' },
+  { id: 'audio', label: 'Audio' },
+  { id: 'clips', label: 'Clip export' },
   { id: 'storage', label: 'Storage' },
   { id: 'preferences', label: 'Preferences' },
-  { id: 'advanced', label: 'Advanced' },
+  { id: 'advanced', label: 'Updates & diagnostics' },
 ];
 
 function SectionHeader({ id, children }: { id: string; children: React.ReactNode }) {
@@ -78,6 +79,7 @@ export default function Settings() {
               <button
                 key={item.id}
                 onClick={() => scrollToSection(item.id)}
+                aria-current={activeSection === item.id ? 'location' : undefined}
                 className={`px-3 py-1.5 text-sm rounded transition-colors cursor-pointer ${
                   activeSection === item.id
                     ? 'text-primary bg-base-300'
@@ -92,15 +94,21 @@ export default function Settings() {
       </div>
 
       {/* Content */}
-      <div className="p-5 space-y-6">
+      <div className="mx-auto max-w-5xl p-5 space-y-4">
+        <p className="text-sm text-base-content/70">
+          Changes are saved automatically. Recording settings and clip export settings are
+          independent.
+        </p>
         {/* RECORDING */}
         <SectionHeader id="recording">Recording</SectionHeader>
         <VideoSettingsSection settings={settings} updateSettings={updateSettings} />
-        <AudioDevicesSection settings={settings} updateSettings={updateSettings} />
         <KeybindingsSection settings={settings} updateSettings={updateSettings} />
 
+        <SectionHeader id="audio">Audio</SectionHeader>
+        <AudioDevicesSection settings={settings} updateSettings={updateSettings} />
+
         {/* CLIPS */}
-        <SectionHeader id="clips">Clips</SectionHeader>
+        <SectionHeader id="clips">Clip export</SectionHeader>
         <ClipSettingsSection settings={settings} updateSettings={updateSettings} />
 
         {/* STORAGE */}
@@ -113,7 +121,7 @@ export default function Settings() {
         <MenuCustomizationSection settings={settings} updateSettings={updateSettings} />
 
         {/* ADVANCED */}
-        <SectionHeader id="advanced">Advanced</SectionHeader>
+        <SectionHeader id="advanced">Updates & diagnostics</SectionHeader>
         <AdvancedSection
           settings={settings}
           updateSettings={updateSettings}

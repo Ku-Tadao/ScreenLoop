@@ -24,13 +24,13 @@ export default function AdvancedSection({
     <>
       {/* Advanced Settings */}
       <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
-        <h2 className="text-xl font-semibold mb-4">Advanced Settings</h2>
+        <h2 className="text-xl font-semibold mb-4">Updates and recording engine</h2>
         <div className="bg-base-200 p-4 rounded-lg space-y-4 border border-custom">
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <div className="flex flex-col">
                 <div className="mb-1">
-                  <span className="text-base-content">Update Channel</span>
+                  <span className="text-base-content">Update channel</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-40">
@@ -71,11 +71,11 @@ export default function AdvancedSection({
             </div>
           </div>
 
-          {/* OBS Version Selection */}
+          {/* Recording engine (OBS) Selection */}
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
               <div className="mb-1">
-                <span className="text-base-content">OBS Version</span>
+                <span className="text-base-content">Recording engine (OBS)</span>
               </div>
               <div className="w-40">
                 <DropdownSelect
@@ -110,7 +110,7 @@ export default function AdvancedSection({
             onClick={() => sendMessageToBackend('OpenLogsLocation')}
           >
             <FileText className="w-4 h-4 shrink-0" aria-hidden="true" />
-            <span className="leading-none">View Logs</span>
+            <span className="leading-none">Open log folder</span>
           </Button>
           <div>
             ScreenLoop{' '}

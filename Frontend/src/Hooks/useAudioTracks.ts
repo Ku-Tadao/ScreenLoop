@@ -108,6 +108,7 @@ export function useAudioTracks(
 
   const fetchUrlRef = useRef<string>('');
   const pumpingRef = useRef<boolean>(false);
+  const playbackActiveRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const audioStartCtxTimeRef = useRef<number>(0);
@@ -184,11 +185,16 @@ export function useAudioTracks(
     (td: AudioTrackData, data: AudioData) => {
       const ctx = audioCtxRef.current;
       const vid = videoRef.current;
-      if (!ctx) {
-        data.close();
-        return;
-      }
-      if (vid?.paused) {
+      if (
+        !ctx ||
+        !vid ||
+        vid.paused ||
+        vid.ended ||
+        vid.seeking ||
+        !playbackActiveRef.current ||
+        document.hidden ||
+        trackDataRef.current.get(td.ScreenLoopIndex) !== td
+      ) {
         data.close();
         return;
       }
@@ -258,12 +264,12 @@ export function useAudioTracks(
     const vid = videoRef.current;
     const signal = abortRef.current?.signal;
     if (!ctx || !vid || !signal || signal.aborted) return;
-    if (vid.paused) return;
+    if (vid.paused || !playbackActiveRef.current) return;
 
     pumpingRef.current = true;
     try {
       let startGen = generationRef.current;
-      while (!signal.aborted && !vid.paused) {
+      while (!signal.aborted && !vid.paused && playbackActiveRef.current) {
         if (generationRef.current !== startGen) startGen = generationRef.current;
 
         const playhead = vid.currentTime;
@@ -297,7 +303,7 @@ export function useAudioTracks(
           console.warn('[useAudioTracks] pump fetch failed', err);
           return;
         }
-        if (signal.aborted) return;
+        if (signal.aborted || vid.paused || !playbackActiveRef.current) return;
         if (generationRef.current !== startGen) continue;
 
         const view = new Uint8Array(ab);
@@ -336,7 +342,7 @@ export function useAudioTracks(
         target.cursor = batchEnd;
       }
     } finally {
-      pumpingRef.current = false;
+      if (abortRef.current?.signal === signal) pumpingRef.current = false;
     }
   }, [rangeFetch, videoRef]);
 
@@ -544,6 +550,7 @@ export function useAudioTracks(
         const support = await AudioDecoder.isConfigSupported(decoderConfig).catch(() => ({
           supported: false,
         }));
+        if (cancelled || abortController.signal.aborted) return;
         if (!support.supported) {
           console.warn(`[useAudioTracks] track ${i} (${trk.codec}) unsupported`);
           continue;
@@ -592,6 +599,8 @@ export function useAudioTracks(
           decoder.configure(decoderConfig);
         } catch (err) {
           console.warn(`[useAudioTracks] decoder.configure failed track ${i}`, err);
+          decoder.close();
+          gain.disconnect();
           continue;
         }
         td.decoder = decoder;
@@ -622,12 +631,12 @@ export function useAudioTracks(
       }
       audioStartCtxTimeRef.current = ctx.currentTime - startTime / startRate;
       playbackRateRef.current = startRate;
-      pumpDecoders();
     })();
 
     const trackData = trackDataRef.current;
     return () => {
       cancelled = true;
+      playbackActiveRef.current = false;
       abortController.abort();
       generationRef.current += 1;
 
@@ -679,25 +688,40 @@ export function useAudioTracks(
 
     vid.muted = true;
 
+    let disposed = false;
     const onPlay = async () => {
       const ctx = audioCtxRef.current;
-      if (!ctx) return;
+      const generation = generationRef.current;
+      if (!ctx || vid.paused || vid.seeking || vid.ended || document.hidden) return;
       if (ctx.state === 'suspended') {
         try {
           await ctx.resume();
         } catch {
-          // ignore
+          return;
         }
       }
+      if (
+        disposed ||
+        generation !== generationRef.current ||
+        ctx !== audioCtxRef.current ||
+        vid.paused ||
+        vid.seeking ||
+        vid.ended ||
+        document.hidden
+      )
+        return;
+      playbackActiveRef.current = true;
       resyncTo(vid.currentTime, vid.playbackRate);
     };
 
     const onPause = () => {
+      playbackActiveRef.current = false;
+      generationRef.current += 1;
       stopAllSources();
     };
 
     const onSeeked = () => {
-      resyncTo(vid.currentTime, vid.playbackRate);
+      if (vid.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) void onPlay();
     };
 
     const onRateChange = () => {
@@ -708,17 +732,27 @@ export function useAudioTracks(
       pumpDecoders();
     };
 
-    vid.addEventListener('play', onPlay);
+    vid.addEventListener('playing', onPlay);
     vid.addEventListener('pause', onPause);
+    vid.addEventListener('waiting', onPause);
+    vid.addEventListener('seeking', onPause);
+    vid.addEventListener('ended', onPause);
+    vid.addEventListener('emptied', onPause);
     vid.addEventListener('seeked', onSeeked);
     vid.addEventListener('ratechange', onRateChange);
     vid.addEventListener('timeupdate', onTimeUpdate);
 
-    if (!vid.paused) onPlay();
+    if (!vid.paused && vid.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) void onPlay();
 
     return () => {
-      vid.removeEventListener('play', onPlay);
+      disposed = true;
+      onPause();
+      vid.removeEventListener('playing', onPlay);
       vid.removeEventListener('pause', onPause);
+      vid.removeEventListener('waiting', onPause);
+      vid.removeEventListener('seeking', onPause);
+      vid.removeEventListener('ended', onPause);
+      vid.removeEventListener('emptied', onPause);
       vid.removeEventListener('seeked', onSeeked);
       vid.removeEventListener('ratechange', onRateChange);
       vid.removeEventListener('timeupdate', onTimeUpdate);

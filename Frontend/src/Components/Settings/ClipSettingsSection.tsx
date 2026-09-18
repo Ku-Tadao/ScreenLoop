@@ -23,30 +23,29 @@ export default function ClipSettingsSection({
   updateSettings,
 }: ClipSettingsSectionProps) {
   const appState = useAppState();
-  const cpuQualityItems = Array.from({ length: 64 }, (_, value) => {
-    const label =
-      value === 0
-        ? '0 (Lossless / Largest)'
-        : value === 17
-          ? '17 (Highest Quality)'
-          : value === 20
-            ? '20 (High Quality)'
-            : value === 23
-              ? '23 (Normal Quality)'
-              : value === 30
-                ? '30 (Small)'
-                : value === 35
-                  ? '35 (Smaller)'
-                  : value === 40
-                    ? '40 (Tiny)'
-                    : value === 50
-                      ? '50 (Very Tiny)'
-                      : value === 63
-                        ? '63 (Smallest / Lowest Quality)'
-                        : String(value);
-
-    return { value: String(value), label };
+  const hasHardwareAv1 = appState.codecs.some((codec) => {
+    if (!codec.isHardwareEncoder || !codec.internalEncoderId.toLowerCase().includes('av1'))
+      return false;
+    const id = codec.internalEncoderId.toLowerCase();
+    return appState.gpuVendor === GpuVendor.Nvidia
+      ? id.includes('nvenc')
+      : appState.gpuVendor === GpuVendor.AMD
+        ? id.includes('amf')
+        : appState.gpuVendor === GpuVendor.Intel && id.includes('qsv');
   });
+  const cpuQualityItems = Array.from(
+    { length: settings.clipCodec === 'av1' ? 64 : 52 },
+    (_, value) => {
+      const label =
+        value === 0
+          ? '0 (Highest quality setting)'
+          : value === (settings.clipCodec === 'av1' ? 63 : 51)
+            ? `${value} (Lowest quality setting)`
+            : String(value);
+
+      return { value: String(value), label };
+    },
+  );
 
   // Helper function to get available presets based on encoder settings
   const getAvailablePresets = (
@@ -132,10 +131,10 @@ export default function ClipSettingsSection({
   };
 
   const clipBitrateItems = [
-    { value: '0', label: 'Quality based (CRF/CQ)' },
-    { value: '400', label: '400 Kbps (tiny AV1)' },
-    { value: '600', label: '600 Kbps' },
-    { value: '800', label: '800 Kbps' },
+    { value: '0', label: 'Quality-based (variable file size)' },
+    { value: '400', label: '400 kbps' },
+    { value: '600', label: '600 kbps' },
+    { value: '800', label: '800 kbps' },
     { value: '1000', label: '1 Mbps' },
     { value: '1500', label: '1.5 Mbps' },
     { value: '2500', label: '2.5 Mbps' },
@@ -151,7 +150,11 @@ export default function ClipSettingsSection({
 
   return (
     <div className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
-      <h2 className="text-xl font-semibold mb-4">Clip Settings</h2>
+      <h2 className="text-xl font-semibold mb-1">Clip export</h2>
+      <p className="mb-4 text-sm text-base-content/70">
+        Choose an export profile, or select Custom to adjust encoding. The three profiles use CPU
+        encoding. Compression also uses these codec, bitrate, and resolution settings.
+      </p>
 
       {/* Quality Preset Selector */}
       <div className="mb-4">
@@ -164,9 +167,9 @@ export default function ClipSettingsSection({
             }`}
             onClick={() => handlePresetChange('low')}
           >
-            <div className="text-sm font-semibold">Small File</div>
+            <div className="text-sm font-semibold">Small file</div>
             <div className="text-xs text-base-content text-opacity-70 mt-1">
-              AV1 400 Kbps • 30fps
+              {settings.clipCodec === 'av1' ? 'AV1 · 400 kbps' : 'H.264 · 4 Mbps'} · 720p · 30 fps
             </div>
           </button>
           <button
@@ -179,7 +182,8 @@ export default function ClipSettingsSection({
           >
             <div className="text-sm font-semibold">Standard</div>
             <div className="text-xs text-base-content text-opacity-70 mt-1">
-              AV1 800 Kbps • 60fps
+              {settings.clipCodec === 'av1' ? 'AV1 · 800 kbps' : 'H.264 · 8 Mbps'} · Source size ·
+              60 fps
             </div>
           </button>
           <button
@@ -190,9 +194,10 @@ export default function ClipSettingsSection({
             }`}
             onClick={() => handlePresetChange('high')}
           >
-            <div className="text-sm font-semibold">High Quality</div>
+            <div className="text-sm font-semibold">High quality</div>
             <div className="text-xs text-base-content text-opacity-70 mt-1">
-              AV1 1.5 Mbps • 60fps
+              {settings.clipCodec === 'av1' ? 'AV1 · 1.5 Mbps' : 'H.264 · 16 Mbps'} · Source size ·
+              60 fps
             </div>
           </button>
           <button
@@ -204,7 +209,9 @@ export default function ClipSettingsSection({
             onClick={() => handlePresetChange('custom')}
           >
             <div className="text-sm font-semibold">Custom</div>
-            <div className="text-xs text-base-content text-opacity-70 mt-1">Manual config</div>
+            <div className="text-xs text-base-content text-opacity-70 mt-1">
+              Choose encoding settings
+            </div>
           </button>
         </div>
       </div>
@@ -240,9 +247,9 @@ export default function ClipSettingsSection({
                 <DropdownSelect
                   ariaLabel="Clip encoder"
                   items={[
-                    { value: 'cpu', label: 'CPU' },
+                    { value: 'cpu', label: 'CPU (software)' },
                     ...(appState.gpuVendor !== GpuVendor.Unknown
-                      ? [{ value: 'gpu', label: 'GPU' }]
+                      ? [{ value: 'gpu', label: `GPU (${appState.gpuVendor})` }]
                       : []),
                   ]}
                   value={settings.clipEncoder}
@@ -250,8 +257,13 @@ export default function ClipSettingsSection({
                     const newSettings: Partial<SettingsType> = {
                       clipEncoder: val as 'cpu' | 'gpu',
                     };
+                    const codec =
+                      val === 'gpu' && settings.clipCodec === 'av1' && !hasHardwareAv1
+                        ? 'h264'
+                        : settings.clipCodec;
+                    newSettings.clipCodec = codec;
                     if (val === 'cpu' && settings.clipEncoder !== 'cpu') {
-                      newSettings.clipPreset = 'veryfast' as ClipPreset;
+                      newSettings.clipPreset = codec === 'av1' ? 'svt-6' : 'veryfast';
                     } else if (val === 'gpu' && settings.clipEncoder !== 'gpu') {
                       // Set default preset based on GPU vendor
                       switch (appState.gpuVendor) {
@@ -263,10 +275,14 @@ export default function ClipSettingsSection({
                           break;
                         case GpuVendor.Nvidia:
                         default:
-                          newSettings.clipPreset = 'medium' as ClipPreset;
+                          newSettings.clipPreset = codec === 'av1' ? 'p4' : 'medium';
                           break;
                       }
                     }
+                    newSettings.clipQualityCpu = Math.min(
+                      settings.clipQualityCpu,
+                      codec === 'av1' ? 63 : 51,
+                    );
                     updateSettings(newSettings);
                   }}
                 />
@@ -280,13 +296,15 @@ export default function ClipSettingsSection({
                   </label>
                   <DropdownSelect
                     ariaLabel="Clip CPU quality"
+                    disabled={settings.clipVideoBitrate > 0}
                     items={cpuQualityItems}
                     value={String(settings.clipQualityCpu)}
                     onChange={(val) => updateSettings({ clipQualityCpu: Number(val) })}
                   />
                   <p className="mt-2 text-xs text-base-content/70">
-                    Lower CRF keeps more detail and creates larger files. Higher CRF creates smaller
-                    files with more compression.
+                    {settings.clipVideoBitrate > 0
+                      ? 'Quality is controlled by the target video bitrate. Select Quality-based in Video bitrate to use CRF.'
+                      : 'Lower values preserve more detail and usually produce larger files. The scale depends on the codec.'}
                   </p>
                 </div>
               ) : (
@@ -306,10 +324,11 @@ export default function ClipSettingsSection({
                   </label>
                   <DropdownSelect
                     ariaLabel="Clip GPU quality"
+                    disabled={settings.clipVideoBitrate > 0}
                     items={
                       appState.gpuVendor === GpuVendor.Nvidia
                         ? [
-                            { value: '0', label: '0 (Highest Quality)' },
+                            { value: '0', label: '0 (Automatic)' },
                             { value: '10', label: '10' },
                             { value: '15', label: '15' },
                             { value: '20', label: '20 (High Quality)' },
@@ -367,8 +386,7 @@ export default function ClipSettingsSection({
                   items={[
                     { value: 'h264', label: 'H.264' },
                     { value: 'h265', label: 'H.265' },
-                    ...(settings.clipEncoder === 'cpu' ||
-                    appState.codecs.find((c) => c.internalEncoderId.includes('av1'))
+                    ...(settings.clipEncoder === 'cpu' || hasHardwareAv1
                       ? [
                           {
                             value: 'av1',
@@ -382,6 +400,10 @@ export default function ClipSettingsSection({
                   onChange={(val) => {
                     const newCodec = val as 'h264' | 'h265' | 'av1';
                     const updates: Partial<SettingsType> = { clipCodec: newCodec };
+                    updates.clipQualityCpu = Math.min(
+                      settings.clipQualityCpu,
+                      newCodec === 'av1' ? 63 : 51,
+                    );
 
                     if (settings.clipEncoder === 'cpu') {
                       if (newCodec === 'av1') {
@@ -395,7 +417,7 @@ export default function ClipSettingsSection({
                     }
 
                     // Auto-adjust preset when switching to/from AV1 on NVIDIA
-                    if (appState.gpuVendor === GpuVendor.Nvidia) {
+                    if (settings.clipEncoder === 'gpu' && appState.gpuVendor === GpuVendor.Nvidia) {
                       if (
                         newCodec === 'av1' &&
                         !['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'].includes(settings.clipPreset)
@@ -413,14 +435,14 @@ export default function ClipSettingsSection({
 
                     updateSettings(updates);
                   }}
-                  disabled={!appState.hasLoadedObs}
+                  disabled={settings.clipEncoder === 'gpu' && !appState.hasLoadedObs}
                 />
               </div>
 
-              {/* Video Bitrate */}
+              {/* Video bitrate */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Video Bitrate</span>
+                  <span className="label-text text-base-content">Video bitrate</span>
                 </label>
                 <DropdownSelect
                   ariaLabel="Clip video bitrate"
@@ -429,8 +451,8 @@ export default function ClipSettingsSection({
                   onChange={(val) => updateSettings({ clipVideoBitrate: Number(val) })}
                 />
                 <p className="mt-2 text-xs text-base-content/70">
-                  Use higher bitrates for H.264/H.265 clips. AV1 can stay much lower when compact
-                  size matters.
+                  A target bitrate controls file size and overrides the quality value above.
+                  Quality-based encoding lets file size vary with the content.
                 </p>
               </div>
 
@@ -457,12 +479,12 @@ export default function ClipSettingsSection({
               {/* FPS */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">FPS</span>
+                  <span className="label-text text-base-content">Frame rate (fps)</span>
                 </label>
                 <DropdownSelect
                   ariaLabel="Clip frame rate"
                   items={[
-                    { value: '0', label: 'Original FPS' },
+                    { value: '0', label: 'Same as source' },
                     { value: '24', label: '24 FPS' },
                     { value: '30', label: '30 FPS' },
                     { value: '60', label: '60 FPS' },
@@ -477,7 +499,7 @@ export default function ClipSettingsSection({
               {/* Audio Quality */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Audio Bitrate</span>
+                  <span className="label-text text-base-content">Audio bitrate</span>
                 </label>
                 <DropdownSelect
                   ariaLabel="Clip audio bitrate"
@@ -487,7 +509,7 @@ export default function ClipSettingsSection({
                     { value: '128k', label: '128 kbps (Medium)' },
                     { value: '192k', label: '192 kbps (High)' },
                     { value: '256k', label: '256 kbps (Very High)' },
-                    { value: '320k', label: '320 kbps (Insane)' },
+                    { value: '320k', label: '320 kbps' },
                   ]}
                   value={settings.clipAudioQuality}
                   onChange={(val) =>
@@ -498,10 +520,10 @@ export default function ClipSettingsSection({
                 />
               </div>
 
-              {/* Audio Codec */}
+              {/* Audio codec */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Audio Codec</span>
+                  <span className="label-text text-base-content">Audio codec</span>
                 </label>
                 <DropdownSelect
                   ariaLabel="Clip audio codec"
@@ -517,7 +539,7 @@ export default function ClipSettingsSection({
               {/* Preset */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text text-base-content">Preset</span>
+                  <span className="label-text text-base-content">Encoding speed / mode</span>
                 </label>
                 <DropdownSelect
                   ariaLabel="Clip encoder preset"
@@ -527,6 +549,7 @@ export default function ClipSettingsSection({
                     appState.gpuVendor,
                   )}
                   value={settings.clipPreset}
+                  placeholder="Choose a compatible encoding mode"
                   onChange={(val) => updateSettings({ clipPreset: val as ClipPreset })}
                 />
               </div>
@@ -546,7 +569,7 @@ export default function ClipSettingsSection({
               onChange={(e) => updateSettings({ clipKeepSeparateAudioTracks: e.target.checked })}
               className="checkbox checkbox-primary checkbox-sm"
             />
-            <span className="cursor-pointer">Keep Audio Tracks Separated</span>
+            <span className="cursor-pointer">Keep separate audio tracks</span>
           </label>
         </div>
       )}

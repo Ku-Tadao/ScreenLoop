@@ -35,35 +35,12 @@ namespace ScreenLoop.Backend.Media
                 Log.Information($"Starting compression for: {filePath} (Original size: {originalSize / 1024 / 1024}MB)");
                 await MessageService.SendFrontendMessage("CompressionProgress", new { filePath, progress = 0, status = "compressing" });
 
-                string videoCodec;
-                string qualityArgs;
-                string presetArgs;
-
-                if (Settings.Instance.ClipEncoder.Equals("cpu", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (Settings.Instance.ClipCodec.Equals("h265", StringComparison.OrdinalIgnoreCase))
-                        videoCodec = "libx265";
-                    else if (Settings.Instance.ClipCodec.Equals("av1", StringComparison.OrdinalIgnoreCase))
-                        videoCodec = "libsvtav1";
-                    else
-                        videoCodec = "libx264";
-
-                    qualityArgs = $"-crf {Settings.Instance.ClipQualityCpu}";
-                    presetArgs = videoCodec.Equals("libsvtav1", StringComparison.OrdinalIgnoreCase)
-                        ? $"-preset {EncodingArgs.MapSvtAv1Preset(Settings.Instance.ClipPreset)}"
-                        : $"-preset {Settings.Instance.ClipPreset}";
-                }
-                else
-                {
-                    videoCodec = "libx264";
-                    qualityArgs = "-crf 23";
-                    presetArgs = "-preset veryfast";
-                }
+                string videoCodecArgs = EncodingArgs.GetVideoCodecArgs(Settings.Instance, ScreenLoop.Backend.Utils.GeneralUtils.DetectGpuVendor());
 
                 string scaleFilter = EncodingArgs.GetScaleFilter(Settings.Instance.ClipResolution);
                 string videoFilterArgs = string.IsNullOrWhiteSpace(scaleFilter) ? "" : $"-vf {scaleFilter} ";
                 string audioCodecArgs = EncodingArgs.GetAudioCodecArgs(Settings.Instance);
-                string arguments = $"-y -i \"{filePath}\" {videoFilterArgs}-c:v {videoCodec} {presetArgs} {qualityArgs} {audioCodecArgs} -movflags +faststart \"{tempOutputPath}\"";
+                string arguments = $"-y -i \"{filePath}\" -map 0:v:0 -map 0:a? {videoFilterArgs}{videoCodecArgs} {audioCodecArgs} -movflags +faststart \"{tempOutputPath}\"";
 
                 await FFmpegService.RunWithProgress(processId, arguments, duration, (progress) =>
                 {

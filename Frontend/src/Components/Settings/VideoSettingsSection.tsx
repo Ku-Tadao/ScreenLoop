@@ -1,4 +1,4 @@
-import { HelpCircle, Monitor } from 'lucide-react';
+import { HelpCircle } from 'lucide-react';
 import DropdownSelect from '../DropdownSelect';
 import {
   Settings as SettingsType,
@@ -19,10 +19,10 @@ const presets: Array<{
   label: string;
   description: string;
 }> = [
-  { id: 'low', label: 'Low', description: 'Modest - 720p 30fps' },
-  { id: 'standard', label: 'Medium', description: 'Efficient - 1080p 60fps' },
-  { id: 'high', label: 'High', description: 'High End - 1440p 60fps' },
-  { id: 'custom', label: 'Custom', description: 'Use your own recipe' },
+  { id: 'low', label: 'Small file', description: '720p · 30 fps' },
+  { id: 'standard', label: 'Standard', description: '1080p · 60 fps' },
+  { id: 'high', label: 'High quality', description: 'Up to 1440p · 60 fps' },
+  { id: 'custom', label: 'Custom', description: 'Choose recording settings' },
 ];
 
 const fpsOptions = [10, 20, 30, 60, 90, 120];
@@ -61,25 +61,20 @@ export default function VideoSettingsSection({
   };
 
   return (
-    <section className="mx-auto max-w-3xl py-4 text-center">
-      <h2 className="text-3xl font-semibold text-slate-200">Adjust video quality</h2>
-      <p className="mt-1 text-lg text-screen-muted">
-        Balance system performance and video settings.
+    <section className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+      <h2 className="text-xl font-semibold">Recording quality</h2>
+      <p className="mt-1 text-sm text-screen-muted">
+        Applies to replay buffers and full recordings. Clip exports have separate settings.
       </p>
 
-      <div className="mt-12 flex justify-center">
-        <div className="flex h-28 w-44 items-center justify-center text-screen-line">
-          <Monitor strokeWidth={1.4} className="h-28 w-44" />
-        </div>
-      </div>
-
-      <div className="mt-12 grid grid-cols-1 gap-3 text-left sm:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-3 text-left sm:grid-cols-4">
         {presets.map((preset) => {
           const active = settings.videoQualityPreset === preset.id;
           return (
             <button
               key={preset.id}
               type="button"
+              aria-pressed={active}
               className={`relative min-h-16 rounded-lg border p-3 pr-6 transition-colors ${
                 active
                   ? 'border-primary bg-primary/10 text-slate-100 shadow-[0_0_0_1px_rgba(99,247,255,0.14)]'
@@ -90,7 +85,7 @@ export default function VideoSettingsSection({
               <span className="absolute left-3 top-4 h-4 w-4 rounded-full bg-screen-deep ring-1 ring-screen-line">
                 {active && <span className="m-1 block h-2 w-2 rounded-full bg-primary" />}
               </span>
-              <span className="ml-7 block text-xl font-medium">{preset.label}</span>
+              <span className="ml-7 block text-sm font-medium">{preset.label}</span>
               <span className="ml-7 mt-1 block text-sm text-screen-muted">
                 {preset.description}
               </span>
@@ -99,16 +94,16 @@ export default function VideoSettingsSection({
         })}
       </div>
 
-      <div className="mt-10 space-y-3 text-left">
+      <div className="mt-4 space-y-3 text-left">
         <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[140px_1fr] sm:gap-3">
-          <label className="text-lg text-screen-muted">Encoder</label>
+          <label className="text-sm text-screen-muted">Encoder</label>
           <DropdownSelect
             ariaLabel="Encoder"
             items={[
               ...(appState.codecs.some((codec) => codec.isHardwareEncoder)
-                ? [{ value: 'gpu', label: 'GPU' }]
+                ? [{ value: 'gpu', label: 'GPU (hardware)' }]
                 : []),
-              { value: 'cpu', label: 'CPU' },
+              { value: 'cpu', label: 'CPU (software)' },
             ]}
             value={settings.encoder}
             onChange={(val) => {
@@ -126,7 +121,7 @@ export default function VideoSettingsSection({
         </div>
 
         <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[140px_1fr] sm:gap-3">
-          <label className="text-lg text-screen-muted">Codec</label>
+          <label className="text-sm text-screen-muted">Video codec</label>
           <DropdownSelect
             ariaLabel="Codec"
             items={
@@ -147,7 +142,7 @@ export default function VideoSettingsSection({
         </div>
 
         <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[140px_1fr] sm:gap-3">
-          <label className="text-lg text-screen-muted">Resolution</label>
+          <label className="text-sm text-screen-muted">Resolution</label>
           <DropdownSelect
             ariaLabel="Resolution"
             items={[
@@ -169,7 +164,9 @@ export default function VideoSettingsSection({
         </div>
 
         <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[140px_1fr] sm:gap-3">
-          <label className="text-lg text-screen-muted">Bitrate (Kbps)</label>
+          <label className="text-sm text-screen-muted">
+            {settings.rateControl === 'CBR' ? 'Video bitrate (kbps)' : 'Maximum bitrate (kbps)'}
+          </label>
           <DropdownSelect
             ariaLabel="Bitrate in kilobits per second"
             items={[
@@ -183,12 +180,10 @@ export default function VideoSettingsSection({
             onChange={(val) => {
               const kbps = Math.max(100, Math.round(Number(val)));
               updateSettings({
-                rateControl: 'CBR',
                 bitrate: kbps,
                 minBitrate: Math.max(100, Math.round(kbps * 0.7)),
                 maxBitrate: kbps,
                 replayBufferMaxSize: getBufferMaxSizeMb(settings, {
-                  rateControl: 'CBR',
                   bitrate: kbps,
                   maxBitrate: kbps,
                 }),
@@ -199,12 +194,14 @@ export default function VideoSettingsSection({
         </div>
 
         <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[140px_1fr] sm:gap-3">
-          <label className="text-lg text-screen-muted">Frame rate (FPS)</label>
+          <label className="text-sm text-screen-muted">Frame rate (FPS)</label>
           <div className="grid grid-cols-3 overflow-hidden rounded-lg border border-screen-line bg-screen-main sm:grid-cols-6">
             {fpsOptions.map((fps) => (
               <button
                 key={fps}
                 type="button"
+                aria-pressed={settings.frameRate === fps}
+                aria-label={`${fps} frames per second`}
                 className={`h-10 text-lg transition-colors ${
                   settings.frameRate === fps
                     ? 'bg-primary/10 text-primary'
@@ -219,7 +216,7 @@ export default function VideoSettingsSection({
         </div>
 
         <div className="grid grid-cols-1 items-center gap-2 pt-3 sm:grid-cols-[140px_1fr] sm:gap-3">
-          <label className="text-lg text-screen-muted">Buffer length</label>
+          <label className="text-sm text-screen-muted">Replay buffer (seconds)</label>
           <div>
             <div className="flex items-center gap-2">
               <input
@@ -230,7 +227,10 @@ export default function VideoSettingsSection({
                 type="number"
                 value={settings.replayBufferDuration}
                 onChange={(e) => {
-                  const replayBufferDuration = Number(e.target.value) || 30;
+                  const replayBufferDuration = Math.min(
+                    600,
+                    Math.max(5, Math.round(Number(e.target.value) || 30)),
+                  );
                   updateSettings({
                     replayBufferDuration,
                     replayBufferMaxSize: getBufferMaxSizeMb(settings, { replayBufferDuration }),
@@ -248,7 +248,7 @@ export default function VideoSettingsSection({
         </div>
 
         <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[140px_1fr] sm:gap-3">
-          <label className="text-lg text-screen-muted">Monitor</label>
+          <label className="text-sm text-screen-muted">Monitor</label>
           <DropdownSelect
             ariaLabel="Monitor"
             items={[
@@ -271,13 +271,13 @@ export default function VideoSettingsSection({
         </div>
 
         <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[140px_1fr] sm:gap-3">
-          <label className="text-lg text-screen-muted">Capture method</label>
+          <label className="text-sm text-screen-muted">Capture method</label>
           <DropdownSelect
             ariaLabel="Capture method"
             items={[
-              { value: 'Auto', label: 'Auto' },
-              { value: 'DXGI', label: 'DXGI' },
-              { value: 'WGC', label: 'WGC' },
+              { value: 'Auto', label: 'Automatic (recommended)' },
+              { value: 'DXGI', label: 'Desktop Duplication (DXGI)' },
+              { value: 'WGC', label: 'Windows Graphics Capture (WGC)' },
             ]}
             value={settings.displayCaptureMethod}
             onChange={(val) =>
@@ -285,6 +285,30 @@ export default function VideoSettingsSection({
             }
           />
         </div>
+      </div>
+      <div className="flex items-center mt-4">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            name="alwaysRecord"
+            checked={settings.alwaysRecord}
+            onChange={(e) => updateSettings({ alwaysRecord: e.target.checked })}
+            className="checkbox checkbox-primary checkbox-sm"
+          />
+          <span className="cursor-pointer">Always record in the background</span>
+        </label>
+      </div>
+      <div className="flex items-center mt-4">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            name="discardSessionsWithoutBookmarks"
+            checked={settings.discardSessionsWithoutBookmarks}
+            onChange={(e) => updateSettings({ discardSessionsWithoutBookmarks: e.target.checked })}
+            className="checkbox checkbox-primary checkbox-sm"
+          />
+          <span className="cursor-pointer">Discard full recordings without manual bookmarks</span>
+        </label>
       </div>
     </section>
   );

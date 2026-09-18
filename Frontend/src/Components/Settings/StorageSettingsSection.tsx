@@ -52,9 +52,9 @@ export default function StorageSettingsSection({
   };
 
   return (
-    <section className="mx-auto max-w-3xl py-4 text-center">
-      <h2 className="text-3xl font-semibold text-slate-200">Allocate disk space</h2>
-      <p className="mt-1 text-lg text-screen-muted">Keep ScreenLoop captures under control.</p>
+    <section className="p-4 bg-base-300 rounded-lg shadow-md border border-custom">
+      <h2 className="text-xl font-semibold">Storage and cleanup</h2>
+      <p className="mt-1 text-sm text-screen-muted">Keep ScreenLoop captures under control.</p>
 
       <div className="mt-8 rounded-lg border border-screen-line bg-screen-surface p-6 text-left shadow-[inset_0_0_40px_rgba(99,247,255,0.025)]">
         <div className="flex gap-5">
@@ -62,10 +62,10 @@ export default function StorageSettingsSection({
             <HardDrive className="h-8 w-8 text-primary" />
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="text-xl font-semibold text-slate-200">Auto manage</h3>
+            <h3 className="text-xl font-semibold text-slate-200">Automatic cleanup</h3>
             <p className="mt-1 max-w-md text-sm text-screen-muted">
-              Automatically deletes the oldest ScreenLoop captures when the media folder passes the
-              limit. Favorites, imported files, and manually added videos are protected.
+              Automatically deletes the oldest ScreenLoop captures when the media folder reaches 80%
+              of its limit. Favorites, imported files, and manually added videos are protected.
             </p>
           </div>
         </div>
@@ -86,7 +86,7 @@ export default function StorageSettingsSection({
             </div>
           </div>
           <div className="rounded-lg border border-screen-line bg-screen-main p-3">
-            <div className="text-xs uppercase text-screen-muted">Auto-manage starts</div>
+            <div className="text-xs uppercase text-screen-muted">Cleanup starts</div>
             <div className="mt-1 text-xl font-semibold text-slate-200">
               {autoManageStartGb.toFixed(2)} GB used
             </div>
@@ -132,6 +132,8 @@ export default function StorageSettingsSection({
               onChange={(e) => setLocalStorageLimit(e.target.value)}
               onMouseUp={(e) => commitStorageLimit(e.currentTarget.value)}
               onTouchEnd={(e) => commitStorageLimit(e.currentTarget.value)}
+              onKeyUp={(e) => commitStorageLimit(e.currentTarget.value)}
+              onBlur={(e) => commitStorageLimit(e.currentTarget.value)}
             />
             <input
               aria-label="Media folder size limit in gigabytes"
@@ -155,7 +157,7 @@ export default function StorageSettingsSection({
               <div
                 className="absolute top-0 h-full w-px bg-slate-200/80"
                 style={{ left: `${autoManageStartPercent}%` }}
-                title={`Auto-manage starts at ${autoManageStartGb.toFixed(2)} GB used`}
+                title={`Cleanup starts at ${autoManageStartGb.toFixed(2)} GB used`}
               />
             </div>
           </div>
@@ -189,7 +191,7 @@ export default function StorageSettingsSection({
 
       <div className="mt-6 text-left">
         <label htmlFor="cache-folder" className="mb-2 block text-xl text-slate-300">
-          Metadata/cache folder
+          Thumbnails and metadata folder
         </label>
         <div className="flex gap-3">
           <input
@@ -206,6 +208,18 @@ export default function StorageSettingsSection({
             Change
           </button>
         </div>
+      </div>
+      <div className="flex items-center mt-4">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            name="removeOriginalAfterCompression"
+            checked={settings.removeOriginalAfterCompression}
+            onChange={(e) => updateSettings({ removeOriginalAfterCompression: e.target.checked })}
+            className="checkbox checkbox-primary checkbox-sm"
+          />
+          <span className="cursor-pointer">Delete the original after successful compression</span>
+        </label>
       </div>
     </section>
   );

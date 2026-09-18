@@ -42,7 +42,6 @@ namespace ScreenLoop.Backend.Services
                         settings.Bitrate = isAmd ? 20000 : 15000;
                         settings.MinBitrate = 10000;
                         settings.MaxBitrate = isAmd ? 20000 : 15000;
-                        settings.Encoder = "gpu";
                         settings.ReplayBufferMaxSize = CalculateReplayBufferMaxSizeMb(settings);
                         break;
 
@@ -55,7 +54,6 @@ namespace ScreenLoop.Backend.Services
                         settings.Bitrate = isAmd ? 40000 : 30000;
                         settings.MinBitrate = isAmd ? 25000 : 20000;
                         settings.MaxBitrate = isAmd ? 50000 : 40000;
-                        settings.Encoder = "gpu";
                         settings.ReplayBufferMaxSize = CalculateReplayBufferMaxSizeMb(settings);
                         break;
 
@@ -68,7 +66,6 @@ namespace ScreenLoop.Backend.Services
                         settings.Bitrate = isAmd ? 60000 : 50000;
                         settings.MinBitrate = isAmd ? 45000 : 40000;
                         settings.MaxBitrate = isAmd ? 90000 : 70000;
-                        settings.Encoder = "gpu";
                         settings.ReplayBufferMaxSize = CalculateReplayBufferMaxSizeMb(settings);
                         break;
 

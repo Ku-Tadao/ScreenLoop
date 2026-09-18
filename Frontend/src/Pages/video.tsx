@@ -377,7 +377,7 @@ export default function VideoComponent({ video }: { video: Content }) {
 
   // Container state
   const [containerWidth, setContainerWidth] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [showNoSegmentsIndicator, setShowNoSegmentsIndicator] = useState(false);
   const [isClipCreatePending, setIsClipCreatePending] = useState(false);
   const [volume, setVolume] = useState(() => {
@@ -501,6 +501,23 @@ export default function VideoComponent({ video }: { video: Content }) {
     }
   };
 
+  // Pause before detaching the element; Web Audio is cleaned up by useAudioTracks.
+  useLayoutEffect(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    const pauseWhenHidden = () => {
+      if (document.hidden) vid.pause();
+    };
+    document.addEventListener('visibilitychange', pauseWhenHidden);
+    vid.addEventListener('play', pauseWhenHidden);
+    pauseWhenHidden();
+    return () => {
+      document.removeEventListener('visibilitychange', pauseWhenHidden);
+      vid.removeEventListener('play', pauseWhenHidden);
+      vid.pause();
+    };
+  }, []);
+
   // Initialize video metadata
   useEffect(() => {
     const vid = videoRef.current;
@@ -549,6 +566,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     vid.addEventListener('pause', onPause);
     vid.addEventListener('volumechange', onVolumeChange);
     vid.addEventListener('ratechange', onRateChange);
+    setIsPlaying(!vid.paused && !vid.ended);
 
     // Local media can load before this effect runs, so synchronize immediately too.
     if (vid.readyState >= HTMLMediaElement.HAVE_METADATA) {
@@ -853,7 +871,11 @@ export default function VideoComponent({ video }: { video: Content }) {
   const handlePlayPause = () => {
     if (videoRef.current) {
       if (videoRef.current.paused) {
-        videoRef.current.play();
+        void videoRef.current.play().catch((error: unknown) => {
+          if ((error as { name?: string }).name !== 'AbortError') {
+            console.warn('Unable to start video playback', error);
+          }
+        });
       } else {
         videoRef.current.pause();
       }
