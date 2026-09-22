@@ -127,7 +127,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
       </nav>
 
       {/* Status Cards */}
-      <div className="min-h-0 grow overflow-y-auto overscroll-contain">
+      <div className="min-h-0 grow overflow-x-hidden overflow-y-auto overscroll-contain">
         <div className="space-y-2 p-2">
           <div className="sidebar-storage rounded-lg p-3">
             <div className="mb-2 flex items-center justify-between">

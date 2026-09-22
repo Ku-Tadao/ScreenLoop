@@ -120,7 +120,7 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
 
         {/* Recording Details */}
         <div className="flex items-center text-gray-400 text-sm relative z-10">
-          <div className="flex items-center max-w-[105%]">
+          <div className="flex min-w-0 max-w-full items-center">
             <span ref={timerRef} className="tabular-nums">
               00:00
             </span>
