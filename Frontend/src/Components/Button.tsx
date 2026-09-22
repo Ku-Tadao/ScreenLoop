@@ -25,7 +25,7 @@ const variantStyles: Record<ButtonVariant, string> = {
   primary:
     'btn btn-secondary border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 text-gray-300',
   ghost: 'btn btn-ghost text-gray-300 hover:bg-white/10',
-  nav: 'btn btn-secondary w-full justify-start border-base-400 hover:border-base-400 hover:text-primary hover:border-opacity-75 py-3 text-gray-300',
+  nav: 'btn btn-ghost w-full justify-start',
   menu: 'flex w-full items-center gap-2 px-4 py-3 text-white hover:bg-white/10 active:bg-white/20 rounded-lg transition-all duration-200 hover:pl-5 outline-none',
   menuPrimary:
     'flex w-full items-center gap-2 px-4 py-3 text-primary hover:bg-primary/10 active:bg-primary/20 rounded-lg transition-all duration-200 hover:pl-5 outline-none',

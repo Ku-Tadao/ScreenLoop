@@ -13,6 +13,7 @@ import {
   Copy,
   Bookmark,
   Star,
+  MonitorPlay,
 } from 'lucide-react';
 import { useCompression } from '../Context/CompressionContext';
 import Button from './Button';
@@ -267,18 +268,25 @@ export default function ContentCard({
 
   return (
     <div
-      className={`card card-compact bg-base-300 text-gray-300 w-full border border-[#49515b] ${isSelected ? '!outline !outline-1 !outline-primary' : ''} ${isBeingCompressed ? 'cursor-default opacity-75' : 'cursor-pointer'} ${isSelectionMode ? 'select-none' : ''}`}
+      className={`media-card card card-compact bg-base-300 text-gray-300 w-full min-w-0 border border-screen-line/60 ${isSelected ? '!outline !outline-1 !outline-primary' : ''} ${isBeingCompressed ? 'cursor-default opacity-75' : 'cursor-pointer'} ${isSelectionMode ? 'select-none' : ''}`}
       onClick={() => {
         if (isBeingCompressed) return;
         if (!isSelectionMode) markAsViewed();
         onClick?.(content!);
       }}
     >
-      <figure className="relative aspect-video bg-black">
+      <figure className="relative aspect-video bg-base-100">
+        <MonitorPlay aria-hidden="true" className="absolute h-8 w-8 text-screen-muted/40" />
         <img
           src={thumbnailPath}
-          alt={'thumbnail'}
-          className="w-full h-full object-contain select-none"
+          alt=""
+          className="relative w-full h-full object-contain select-none"
+          onError={(event) => {
+            event.currentTarget.style.visibility = 'hidden';
+          }}
+          onLoad={(event) => {
+            event.currentTarget.style.visibility = 'visible';
+          }}
           loading="lazy"
           width={1600}
           height={900}
@@ -351,7 +359,7 @@ export default function ContentCard({
         )}
       </figure>
 
-      <div className="card-body gap-1 pt-2">
+      <div className="card-body gap-1 p-4">
         <div className="flex justify-between items-center">
           {isRenaming ? (
             <input
@@ -374,7 +382,7 @@ export default function ContentCard({
               placeholder={content!.game || 'Untitled'}
             />
           ) : (
-            <h2 className="card-title !block truncate">
+            <h2 className="card-title !block truncate text-sm font-semibold text-base-content">
               {content!.title || content!.game || 'Untitled'}
             </h2>
           )}
@@ -478,7 +486,7 @@ export default function ContentCard({
             </ul>
           </div>
         </div>
-        <div className="text-sm text-gray-200 flex items-center justify-between w-full">
+        <div className="text-xs text-screen-muted flex items-center justify-between w-full tabular-nums">
           <span>
             {content!.fileSize} &bull; {new Date(content!.createdAt).toLocaleDateString()}
           </span>

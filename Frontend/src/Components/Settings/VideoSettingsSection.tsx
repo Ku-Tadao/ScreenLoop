@@ -67,7 +67,7 @@ export default function VideoSettingsSection({
         Applies to replay buffers and full recordings. Clip exports have separate settings.
       </p>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 text-left sm:grid-cols-4">
+      <div className="settings-presets mt-4 grid gap-3 text-left">
         {presets.map((preset) => {
           const active = settings.videoQualityPreset === preset.id;
           return (
@@ -75,7 +75,7 @@ export default function VideoSettingsSection({
               key={preset.id}
               type="button"
               aria-pressed={active}
-              className={`relative min-h-16 rounded-lg border p-3 pr-6 transition-colors ${
+              className={`relative min-h-16 rounded-lg border p-3 pr-6 text-left transition-colors ${
                 active
                   ? 'border-primary bg-primary/10 text-slate-100 shadow-[0_0_0_1px_rgba(99,247,255,0.14)]'
                   : 'border-screen-line bg-screen-main text-screen-muted hover:border-primary/60 hover:bg-screen-raised'

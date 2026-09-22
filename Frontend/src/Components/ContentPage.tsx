@@ -326,14 +326,19 @@ export default function ContentPage({
   return (
     <div
       ref={containerRef}
-      className="p-5 space-y-6 overflow-y-scroll h-full bg-base-200 overflow-x-hidden"
+      className="workspace-page space-y-6 overflow-y-auto h-full overflow-x-hidden"
       onScroll={handleScroll}
     >
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold">{title}</h1>
+      <div className="workspace-heading library-heading">
+        <div>
+          <p className="eyebrow">Local library</p>
+          <h1>{title}</h1>
+          <p className="mt-2 text-sm text-screen-muted">
+            {filteredItems.length} of {contentItems.length} recordings · Review, trim, and keep your
+            favorites.
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {sectionId === 'clips' && onFavoriteFilterChange && (
             <div className="join">
               <button
@@ -341,6 +346,7 @@ export default function ContentPage({
                   favoriteFilter === 'all' ? 'btn-primary' : 'btn-secondary'
                 }`}
                 onClick={() => onFavoriteFilterChange('all')}
+                aria-pressed={favoriteFilter === 'all'}
               >
                 All
               </button>
@@ -349,6 +355,7 @@ export default function ContentPage({
                   favoriteFilter === 'favorites' ? 'btn-primary' : 'btn-secondary'
                 }`}
                 onClick={() => onFavoriteFilterChange('favorites')}
+                aria-pressed={favoriteFilter === 'favorites'}
               >
                 Favorites
               </button>
@@ -379,7 +386,7 @@ export default function ContentPage({
       </div>
 
       {contentItems.length > 0 || hasProgress ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+        <div className="library-grid">
           {isProgressVisible && progressCardElement}
 
           {filteredItems.map((video) => (
@@ -413,9 +420,12 @@ export default function ContentPage({
           )}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-          <Icon size={60} className="mb-4" />
-          <p className="text-xl">No {title.toLowerCase()} found</p>
+        <div className="empty-library">
+          <Icon size={36} className="mb-4 text-primary" />
+          <p className="text-lg font-semibold">No {title.toLowerCase()} yet</p>
+          <p className="mt-2 text-sm text-screen-muted">
+            Your saved recordings will appear here, ready to review and edit.
+          </p>
         </div>
       )}
 

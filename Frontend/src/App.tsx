@@ -113,11 +113,11 @@ function App() {
   };
 
   return (
-    <div className="flex h-screen w-screen">
-      <div className="h-full">
+    <div className="app-shell flex h-dvh w-full overflow-hidden">
+      <div className="h-full shrink-0">
         <Menu selectedMenu={selectedMenu} onSelectMenu={handleMenuSelection} />
       </div>
-      <div className="flex-1 max-h-full overflow-auto">{renderContent()}</div>
+      <div className="min-w-0 flex-1 max-h-full overflow-auto">{renderContent()}</div>
     </div>
   );
 }

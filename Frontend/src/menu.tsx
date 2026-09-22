@@ -74,14 +74,12 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
     rawStoragePercent > 0 ? Math.max(1, Math.min(100, rawStoragePercent)) : 0;
 
   return (
-    <div className="bg-screen-surface w-60 h-screen flex flex-col border-r border-screen-line">
-      <div className="flex shrink-0 items-center justify-between border-b border-screen-line px-3 py-4">
-        <h1 className="text-xl font-semibold tracking-tight text-primary">ScreenLoop</h1>
+    <aside className="app-sidebar h-full flex flex-col border-r border-screen-line/60">
+      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-5 py-6">
+        <h1 className="text-xl font-semibold tracking-tight text-base-content">ScreenLoop</h1>
         <span
-          className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-            isConnected
-              ? 'border-primary/40 bg-primary/10 text-primary'
-              : 'border-warning/50 bg-warning/10 text-warning'
+          className={`connection-status text-[10px] font-medium ${
+            isConnected ? 'text-primary' : 'text-warning'
           }`}
           role="status"
           aria-live="polite"
@@ -90,7 +88,10 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
         </span>
       </div>
       {/* Menu Items */}
-      <div className="relative flex shrink-0 flex-col gap-1 px-2 py-4 text-left">
+      <nav
+        aria-label="Main navigation"
+        className="relative flex shrink-0 flex-col gap-1 px-3 pb-6 pt-2 text-left"
+      >
         <AnimatePresence initial={false} mode="popLayout">
           {visibleMenuItems.map(({ id }) => {
             const Icon = MENU_ICONS[id];
@@ -99,15 +100,12 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
             const buttonNode = (
               <Button
                 variant="nav"
-                className={`rounded border px-3 py-2 text-xs font-semibold uppercase tracking-[0.05em] ${
-                  isActive
-                    ? 'border-primary bg-screen-raised text-primary shadow-[inset_0_0_18px_rgba(99,247,255,0.08)]'
-                    : 'border-transparent text-screen-muted hover:border-screen-line hover:bg-screen-raised hover:text-primary'
-                }`}
+                aria-current={isActive ? 'page' : undefined}
+                className={`sidebar-link ${isActive ? 'is-active' : ''}`}
                 onClick={() => onSelectMenu(id)}
               >
                 <Icon className="w-5 h-5" />
-                {id}
+                <span>{id}</span>
               </Button>
             );
 
@@ -126,12 +124,12 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
             );
           })}
         </AnimatePresence>
-      </div>
+      </nav>
 
       {/* Status Cards */}
       <div className="min-h-0 grow overflow-y-auto overscroll-contain">
         <div className="space-y-2 p-2">
-          <div className="rounded border border-screen-line bg-screen-deep p-3">
+          <div className="sidebar-storage rounded-lg p-3">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-[0.05em] text-screen-muted">
                 Storage
@@ -144,6 +142,9 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
                 style={{ width: `${storageBarPercent}%` }}
               />
             </div>
+            <p className="mt-2 text-xs text-screen-muted tabular-nums">
+              {appState.currentFolderSizeGb.toFixed(1)} GB / {settings.storageLimit} GB
+            </p>
           </div>
           <AnimatePresence>
             {updateInfo && (
@@ -218,7 +219,7 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
       )}
 
       <button
-        className="m-3 h-11 shrink-0 rounded border border-primary bg-primary text-sm font-semibold uppercase tracking-[0.05em] text-primary-content transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+        className="capture-toggle m-4 h-11 shrink-0 rounded-lg bg-primary text-sm font-semibold text-primary-content transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         disabled={
           buttonCooldown ||
           !isConnected ||
@@ -236,6 +237,6 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
       >
         {appState.recording || appState.preRecording ? 'Stop Recording' : 'Start Capture'}
       </button>
-    </div>
+    </aside>
   );
 }

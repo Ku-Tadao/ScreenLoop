@@ -148,34 +148,39 @@ function TopInfoBar({ video }: { video: Content }) {
       });
 
   return (
-    <div className="flex items-center gap-2 px-2 py-1 mb-2 text-xs leading-tight text-gray-300 border rounded-lg shrink-0 bg-base-300 border-base-400">
+    <div className="editor-heading flex items-center gap-3 pb-4 mb-3 text-xs text-screen-muted border-b border-screen-line shrink-0">
       <Button
         variant="ghost"
         size="xs"
-        className="h-6 min-h-0 px-1"
+        className="h-9 min-h-0 px-2"
         onClick={() => setSelectedVideo(null)}
         aria-label="Back"
       >
         <ArrowLeft className="w-4 h-4" />
       </Button>
-      <div className="flex items-center gap-2 overflow-hidden">
-        <span className="whitespace-nowrap">
-          Created: {createdDateStr}
-          {createdTimeStr ? ` ${createdTimeStr}` : ''}
-        </span>
-        <span>•</span>
-        <span className="whitespace-nowrap">Size: {video.fileSize}</span>
-        <span>•</span>
-        <span className="flex items-center gap-1 min-w-0">
-          <span className="whitespace-nowrap">Location:</span>
-          <a
-            className="text-gray-300 cursor-pointer hover:underline hover:text-gray-200 truncate"
-            onClick={() => openFileLocation(video.filePath)}
-            title={video.filePath}
-          >
-            {video.filePath}
-          </a>
-        </span>
+      <div className="min-w-0 flex-1">
+        <h1 className="mb-1 truncate text-base font-semibold text-base-content">
+          {video.title || video.fileName}
+        </h1>
+        <div className="flex items-center gap-2 overflow-hidden">
+          <span className="whitespace-nowrap">
+            Created: {createdDateStr}
+            {createdTimeStr ? ` ${createdTimeStr}` : ''}
+          </span>
+          <span>•</span>
+          <span className="whitespace-nowrap">Size: {video.fileSize}</span>
+          <span>•</span>
+          <span className="flex items-center gap-1 min-w-0">
+            <span className="whitespace-nowrap">Location:</span>
+            <a
+              className="text-gray-300 cursor-pointer hover:underline hover:text-gray-200 truncate"
+              onClick={() => openFileLocation(video.filePath)}
+              title={video.filePath}
+            >
+              {video.filePath}
+            </a>
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -1597,7 +1602,10 @@ export default function VideoComponent({ video }: { video: Content }) {
   };
 
   return (
-    <div className="flex w-full h-full overflow-hidden bg-base-200" ref={containerRef}>
+    <div
+      className="editor-workspace flex w-full h-full overflow-hidden bg-base-200"
+      ref={containerRef}
+    >
       <div className="flex flex-col flex-1 w-full h-full p-4 pb-2 overflow-hidden lg:w-3/4">
         <TopInfoBar video={video} />
         <div

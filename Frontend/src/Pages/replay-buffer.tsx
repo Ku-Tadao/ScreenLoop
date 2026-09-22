@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Camera, Check, Copy, FolderOpen, Mic2, MonitorPlay, Save } from 'lucide-react';
+import { ArrowUpRight, FolderOpen, Mic2, MonitorPlay, Save, Volume2 } from 'lucide-react';
 import { useAppState } from '../Context/AppStateContext';
 import { useSettings } from '../Context/SettingsContext';
 import { useSelectedMenu } from '../Context/SelectedMenuContext';
@@ -7,8 +7,6 @@ import { useSelectedVideo } from '../Context/SelectedVideoContext';
 import { Content } from '../Models/types';
 import { sendMessageToBackend } from '../Utils/MessageUtils';
 import { useWebSocketContext } from '../Context/WebSocketContext';
-
-const quietWaveformBars = [10, 14, 12, 18, 9, 16, 20, 13, 11, 17, 10, 18, 14, 20, 12, 16, 9, 18];
 
 function formatDuration(duration: string): string {
   const time = duration.split('.')[0];
@@ -49,13 +47,23 @@ function RecentCaptureCard({
 
   return (
     <button
-      className="group overflow-hidden rounded-lg border border-screen-line bg-screen-surface text-left transition-colors hover:border-primary"
+      className="capture-card group w-full min-w-0 overflow-hidden rounded-xl border border-screen-line/60 bg-screen-surface text-left transition-colors hover:border-primary/60"
       onClick={onOpen}
     >
-      <div className="relative aspect-video border-b border-screen-line bg-screen-deep">
+      <div className="relative aspect-video overflow-hidden bg-base-100">
+        <MonitorPlay
+          aria-hidden="true"
+          className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 text-screen-muted/40"
+        />
         <img
           alt=""
-          className="h-full w-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
+          className="relative h-full w-full object-cover"
+          onError={(event) => {
+            event.currentTarget.style.visibility = 'hidden';
+          }}
+          onLoad={(event) => {
+            event.currentTarget.style.visibility = 'visible';
+          }}
           draggable={false}
           src={thumbnailUrl}
         />
@@ -71,7 +79,7 @@ function RecentCaptureCard({
           <span className="text-[11px] font-medium text-screen-muted">
             {relativeTime(item.createdAt, nowMs)}
           </span>
-          <span className="text-[11px] font-medium text-primary">{item.fileSize}</span>
+          <span className="text-[11px] font-medium text-screen-muted">{item.fileSize}</span>
         </div>
       </div>
     </button>
@@ -94,15 +102,6 @@ export default function ReplayBuffer() {
   }, []);
 
   const isRecording = Boolean(appState.recording || appState.preRecording);
-  const waveformBars = useMemo(() => {
-    if (!isRecording) return quietWaveformBars;
-    const level = Math.max(0.03, appState.systemAudioLevel);
-    return quietWaveformBars.map((base, index) => {
-      const motion = 0.45 + Math.abs(Math.sin(index * 0.82)) * 0.55;
-      const lift = Math.round(level * (30 + motion * 34));
-      return Math.max(8, Math.min(64, base + lift));
-    });
-  }, [appState.systemAudioLevel, isRecording]);
   const buffers = useMemo(
     () =>
       appState.content
@@ -110,7 +109,7 @@ export default function ReplayBuffer() {
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     [appState.content],
   );
-  const recentBuffers = buffers.slice(0, 2);
+  const recentBuffers = buffers.slice(0, 3);
 
   const statusLabel = !isConnected
     ? 'Reconnecting to ScreenLoop'
@@ -127,153 +126,131 @@ export default function ReplayBuffer() {
     .padStart(2, '0')}`;
 
   return (
-    <div className="h-full overflow-y-auto bg-screen-deep text-base-content">
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-screen-line bg-screen-deep px-6 py-4">
-        <div
-          className={`flex items-center gap-3 ${isRecording ? 'text-screen-red' : isConnected && appState.hasLoadedObs ? 'text-primary' : 'text-warning'}`}
-        >
-          <span
-            className={`h-3 w-3 rounded-full ${isRecording ? 'pulse-red bg-screen-red' : isConnected && appState.hasLoadedObs ? 'bg-primary' : 'bg-warning'}`}
-          />
-          <span className="text-xl font-semibold">{statusLabel}</span>
+    <div className="workspace-page h-full overflow-y-auto">
+      <header className="workspace-heading">
+        <div>
+          <p className="eyebrow">Capture workspace</p>
+          <h1>Replay Buffer</h1>
+          <p className="mt-2 text-sm text-screen-muted">
+            Keep the moment. Save it when it matters.
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          {isRecording && (
-            <button
-              className="flex h-10 items-center gap-2 rounded border border-primary bg-primary px-4 text-xs font-semibold uppercase tracking-[0.05em] text-primary-content transition-transform active:scale-95"
-              disabled={!isConnected || !appState.hasLoadedObs}
-              onClick={() => sendMessageToBackend('SaveReplayBuffer')}
-            >
-              <Save className="h-4 w-4" />
-              Save Replay
-            </button>
-          )}
+        <div className="capture-status" role="status">
+          <span
+            className={`h-2 w-2 shrink-0 rounded-full ${isRecording ? 'bg-screen-red' : isConnected && appState.hasLoadedObs ? 'bg-primary' : 'bg-warning'}`}
+          />
+          {statusLabel}
         </div>
       </header>
 
-      <main className="p-6">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-          <section className="relative overflow-hidden rounded-lg border border-screen-line bg-screen-surface p-6 md:col-span-8">
-            <div className="absolute right-0 top-0 h-64 w-64 translate-x-1/4 -translate-y-1/2 rounded-full bg-primary/5 blur-3xl" />
-            <div className="relative z-10 flex items-start justify-between gap-4">
-              <div>
-                <h2 className="mb-1 text-2xl font-bold tracking-tight text-slate-100">
-                  Replay Buffer
-                </h2>
-                <p className="text-sm text-screen-muted">
-                  Continuous display loop. Recent footage is ready when you need it.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 rounded border border-screen-line bg-screen-raised px-3 py-1">
-                <span className="h-2 w-2 rounded-full bg-primary" />
-                <span className="text-xs font-semibold uppercase tracking-[0.05em] text-slate-100">
-                  {qualityLabel}
-                </span>
-              </div>
+      <main>
+        <section className="buffer-panel" aria-label="Replay buffer status">
+          <div className="buffer-main">
+            <div className="flex items-center justify-between gap-4">
+              <span className="eyebrow">Rolling capture</span>
+              <MonitorPlay className="h-5 w-5 text-screen-muted" aria-hidden="true" />
             </div>
-
-            <div className="relative z-10 mt-8 flex items-end gap-4">
-              <div className="text-5xl font-bold tracking-tight text-primary">{bufferLabel}</div>
-              <div className="pb-2 text-xs font-semibold uppercase tracking-[0.05em] text-screen-muted">
-                Buffer Length
+            <div className="buffer-time">{bufferLabel}</div>
+            <p className="text-sm text-screen-muted">Buffer length · minutes : seconds</p>
+            <div className="mt-7 flex flex-wrap items-center gap-4">
+              <button
+                className="btn btn-primary gap-2 px-5"
+                disabled={!isConnected || !appState.hasLoadedObs || !isRecording}
+                title={
+                  !isRecording
+                    ? 'Start capture to save a replay'
+                    : 'Save the recent buffer to your library'
+                }
+                onClick={() => sendMessageToBackend('SaveReplayBuffer')}
+              >
+                <Save className="h-4 w-4" />
+                Save Replay
+              </button>
+              <span className="text-xs text-screen-muted">Saved to your local library</span>
+            </div>
+          </div>
+          <div className="buffer-details">
+            <div>
+              <p className="eyebrow">Recording quality</p>
+              <p className="mt-2 text-lg font-medium tabular-nums">{qualityLabel}</p>
+            </div>
+            <div>
+              <div className="mb-3 flex items-center gap-2 text-sm text-screen-muted">
+                <Volume2 className="h-4 w-4" aria-hidden="true" /> System audio
               </div>
+              <meter
+                className="audio-meter"
+                min={0}
+                max={1}
+                value={isConnected && isRecording ? appState.systemAudioLevel : 0}
+                aria-label="System audio level"
+              />
             </div>
-
-            <div className="relative z-10 mt-8 flex h-16 items-end gap-1 opacity-75">
-              {waveformBars.map((height, index) => (
-                <div
-                  key={index}
-                  className="w-2 rounded-t-sm bg-primary transition-[height] duration-150 ease-out"
-                  style={{
-                    height: `${height}px`,
-                    opacity: isRecording ? 1 : 0.45,
-                  }}
-                />
-              ))}
-            </div>
-          </section>
-
-          <section className="flex flex-col gap-4 md:col-span-4">
             <button
-              className="flex min-h-32 flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-screen-line bg-screen-surface p-4 transition-colors hover:border-primary"
-              disabled={!isConnected}
-              onClick={() => sendMessageToBackend('ImportFile', { sectionId: 'replayBuffer' })}
-            >
-              <FolderOpen className="h-9 w-9 text-screen-muted" />
-              <span className="text-xs font-semibold uppercase tracking-[0.05em] text-slate-100">
-                Import Recording
-              </span>
-              <span className="text-[11px] font-medium text-screen-muted">Local files</span>
-            </button>
-            <button
-              className="flex min-h-32 flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-screen-line bg-screen-surface p-4 transition-colors hover:border-primary hover:text-primary"
+              className="text-left text-sm font-medium text-primary hover:underline"
               onClick={() => setSelectedMenu('Settings')}
             >
-              <Mic2 className="h-9 w-9 text-screen-muted" />
-              <span className="text-xs font-semibold uppercase tracking-[0.05em] text-slate-100">
-                Mic Control
-              </span>
-              <span className="text-[11px] font-medium text-screen-muted">Audio settings</span>
-            </button>
-          </section>
-
-          <div className="mt-4 flex items-center justify-between border-b border-screen-line pb-2 md:col-span-12">
-            <h3 className="text-xl font-semibold text-slate-100">Recent Captures</h3>
-            <button
-              className="text-xs font-semibold uppercase tracking-[0.05em] text-primary hover:underline"
-              onClick={() => setSelectedMenu('Clips')}
-            >
-              View Clip Manager
+              Adjust recording settings <ArrowUpRight className="inline h-4 w-4" />
             </button>
           </div>
+        </section>
 
-          {recentBuffers.map((item) => (
-            <div key={item.fileName} className="md:col-span-4">
+        <div className="capture-shortcuts">
+          <button
+            disabled={!isConnected}
+            onClick={() => sendMessageToBackend('ImportFile', { sectionId: 'replayBuffer' })}
+          >
+            <FolderOpen className="h-5 w-5" />
+            <span>
+              Import Recording<span className="shortcut-description">Bring in a local file</span>
+            </span>
+            <ArrowUpRight className="ml-auto h-4 w-4" />
+          </button>
+          <button onClick={() => setSelectedMenu('Settings')}>
+            <Mic2 className="h-5 w-5" />
+            <span>
+              Mic Control<span className="shortcut-description">Manage audio devices</span>
+            </span>
+            <ArrowUpRight className="ml-auto h-4 w-4" />
+          </button>
+        </div>
+
+        <section className="mt-10" aria-labelledby="recent-captures">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 id="recent-captures" className="text-lg font-semibold">
+                Recent Captures
+              </h2>
+              <p className="mt-1 text-xs text-screen-muted">{buffers.length} saved locally</p>
+            </div>
+            <button
+              className="flex items-center gap-2 text-sm text-primary hover:underline"
+              onClick={() => setSelectedMenu('Clips')}
+            >
+              View Clip Manager <ArrowUpRight className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="capture-grid">
+            {recentBuffers.map((item) => (
               <RecentCaptureCard
+                key={item.fileName}
                 item={item}
                 cacheFolder={appState.cacheFolder}
                 nowMs={nowMs}
                 onOpen={() => setSelectedVideo(item)}
               />
-            </div>
-          ))}
-
+            ))}
+          </div>
           {recentBuffers.length === 0 && (
-            <div className="rounded-lg border border-screen-line bg-screen-surface p-8 md:col-span-8">
-              <MonitorPlay className="mb-4 h-10 w-10 text-screen-muted" />
-              <h4 className="mb-1 text-base font-semibold text-slate-100">No captures yet</h4>
-              <p className="max-w-prose text-sm text-screen-muted">
+            <div className="empty-library">
+              <MonitorPlay className="h-9 w-9 text-primary" aria-hidden="true" />
+              <h3 className="mt-4 text-lg font-semibold">Your next moment belongs here</h3>
+              <p className="mt-2 text-sm text-screen-muted">
                 Start capture, then save a replay when something worth keeping happens.
               </p>
             </div>
           )}
-
-          <button
-            className="flex min-h-48 items-center justify-center rounded-lg border border-dashed border-screen-line bg-screen-surface transition-colors hover:border-primary md:col-span-4"
-            onClick={() => setSelectedMenu('Clips')}
-          >
-            <div className="text-center">
-              {buffers.length > 0 ? (
-                <Copy className="mx-auto mb-2 h-9 w-9 text-screen-muted" />
-              ) : (
-                <Camera className="mx-auto mb-2 h-9 w-9 text-screen-muted" />
-              )}
-              <p className="text-xs font-semibold uppercase tracking-[0.05em] text-screen-muted">
-                Open Clip Manager
-              </p>
-            </div>
-          </button>
-
-          {buffers.length > 0 && (
-            <div className="flex items-center gap-2 rounded-lg border border-screen-line bg-screen-surface p-4 md:col-span-4">
-              <Check className="h-5 w-5 text-primary" />
-              <span className="text-sm text-screen-muted">
-                {buffers.length} replay {buffers.length === 1 ? 'capture' : 'captures'} stored
-                locally.
-              </span>
-            </div>
-          )}
-        </div>
+        </section>
       </main>
     </div>
   );

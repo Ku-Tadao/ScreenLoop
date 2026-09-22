@@ -23,10 +23,8 @@ const NAV_ITEMS: { id: SectionId; label: string }[] = [
 
 function SectionHeader({ id, children }: { id: string; children: React.ReactNode }) {
   return (
-    <div id={id} className="scroll-mt-16 mb-0">
-      <h2 className="text-sm font-semibold text-primary uppercase tracking-wider mb-2 mt-8 first:mt-0">
-        {children}
-      </h2>
+    <div id={id} className="settings-section-title scroll-mt-48 mb-0">
+      <h2 className="text-lg font-semibold mb-3 mt-8">{children}</h2>
     </div>
   );
 }
@@ -69,21 +67,22 @@ export default function Settings() {
   }, []);
 
   return (
-    <div className="min-h-full bg-base-200 dark:bg-base-300">
+    <div className="settings-page min-h-full bg-base-200">
       {/* Sticky Jump Nav */}
-      <div className="sticky top-0 z-50 border-b border-base-400 bg-base-200 px-5 py-3 dark:bg-base-300">
-        <div className="flex items-center gap-6">
-          <h1 className="text-2xl font-bold">Settings</h1>
-          <nav className="flex gap-1 overflow-x-auto pb-1" aria-label="Settings sections">
+      <div className="settings-heading sticky top-0 z-30 border-b border-screen-line/60 bg-base-200">
+        <div>
+          <p className="eyebrow">Make it yours</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">Settings</h1>
+          <nav className="mt-5 flex gap-1 overflow-x-auto" aria-label="Settings sections">
             {NAV_ITEMS.map((item) => (
               <button
                 key={item.id}
                 onClick={() => scrollToSection(item.id)}
                 aria-current={activeSection === item.id ? 'location' : undefined}
-                className={`px-3 py-1.5 text-sm rounded transition-colors cursor-pointer ${
+                className={`shrink-0 border-b-2 px-3 py-3 text-sm transition-colors cursor-pointer ${
                   activeSection === item.id
-                    ? 'text-primary bg-base-300'
-                    : 'text-gray-400 hover:text-primary hover:bg-base-300'
+                    ? 'text-primary border-primary'
+                    : 'text-screen-muted border-transparent hover:text-base-content'
                 }`}
               >
                 {item.label}
@@ -94,7 +93,7 @@ export default function Settings() {
       </div>
 
       {/* Content */}
-      <div className="mx-auto max-w-5xl p-5 space-y-4">
+      <div className="settings-content space-y-4">
         <p className="text-sm text-base-content/70">
           Changes are saved automatically. Recording settings and clip export settings are
           independent.
