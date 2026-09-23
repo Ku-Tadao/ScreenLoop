@@ -6,6 +6,8 @@ ScreenLoop is a local-first Windows screen recorder built around one idea: keep 
 
 It is designed for simple display capture, replay-buffer recording, local clip review, lossless trimming, compacting, and automatic storage cleanup. No account, no cloud workflow, no content platform assumptions.
 
+<p align="center"><img src=".github/assets/screenloop-demo.gif" alt="ScreenLoop demo: saving a replay from the rolling buffer and automatic storage cleanup" width="880" /></p>
+
 ## What It Does
 
 - **Always-on display capture**: start ScreenLoop once and keep a replay buffer ready in the background.
