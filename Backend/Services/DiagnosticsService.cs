@@ -481,6 +481,7 @@ namespace ScreenLoop.Backend.Services
             Log.Information($"Enable AI: {s.EnableAi}");
             Log.Information($"Auto generate highlights: {s.AutoGenerateHighlights}");
             Log.Information($"Run on startup: {s.RunOnStartup}");
+            Log.Information($"Run as administrator: {s.RunAsAdmin} (elevated: {ElevationService.IsElevated})");
             Log.Information($"Receive beta updates: {s.ReceiveBetaUpdates}");
             Log.Information($"Remove original after compression: {s.RemoveOriginalAfterCompression}");
             Log.Information($"Discard sessions without bookmarks: {s.DiscardSessionsWithoutBookmarks}");

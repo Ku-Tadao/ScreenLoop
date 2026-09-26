@@ -244,6 +244,7 @@ export interface Settings {
   selectedOBSVersion: string | null; // null means automatic (latest non-beta)
   enableAi: boolean;
   autoGenerateHighlights: boolean;
+  runAsAdmin: boolean;
   runOnStartup: boolean;
   alwaysRecord: boolean;
   receiveBetaUpdates: boolean;
@@ -323,6 +324,7 @@ export const initialSettings: Settings = {
   selectedOBSVersion: null, // null means automatic (latest non-beta)
   enableAi: false,
   autoGenerateHighlights: false,
+  runAsAdmin: false,
   runOnStartup: false,
   alwaysRecord: false,
   receiveBetaUpdates: false,

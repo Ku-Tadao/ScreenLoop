@@ -736,6 +736,17 @@ namespace ScreenLoop.Backend.Services
                 _ = Task.Run(UpdateService.GetReleaseNotes);
             }
 
+            bool relaunchElevated = false;
+            if (settings.RunAsAdmin != updatedSettings.RunAsAdmin)
+            {
+                Log.Information($"RunAsAdmin changed from '{settings.RunAsAdmin}' to '{updatedSettings.RunAsAdmin}'");
+                settings.RunAsAdmin = updatedSettings.RunAsAdmin;
+                hasChanges = true;
+                relaunchElevated = settings.RunAsAdmin && !ElevationService.IsElevated;
+                // Switch between the Startup-folder shortcut and the elevated task.
+                StartupService.SetStartupStatus(settings.RunOnStartup);
+            }
+
             // Update RunOnStartup
             if (settings.RunOnStartup != updatedSettings.RunOnStartup)
             {
@@ -822,6 +833,21 @@ namespace ScreenLoop.Backend.Services
                 if (contentFolderChanged)
                 {
                     await LoadContentFromFolderIntoState();
+                }
+
+                if (relaunchElevated)
+                {
+                    if (ElevationService.TryRelaunchElevated())
+                    {
+                        Program.Exit();
+                    }
+                    else
+                    {
+                        // UAC declined: don't prompt again on every launch.
+                        settings.RunAsAdmin = false;
+                        SaveSettings();
+                        await MessageService.SendSettingsToFrontend("Run as administrator declined");
+                    }
                 }
             }
             else

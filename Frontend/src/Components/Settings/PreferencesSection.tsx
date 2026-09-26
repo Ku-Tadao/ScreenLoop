@@ -35,6 +35,23 @@ export default function PreferencesSection({ settings, updateSettings }: Prefere
           </label>
         </div>
 
+        <div className="flex flex-col">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              name="runAsAdmin"
+              checked={settings.runAsAdmin}
+              onChange={(e) => updateSettings({ runAsAdmin: e.target.checked })}
+              className="checkbox checkbox-primary checkbox-sm"
+            />
+            <span className="cursor-pointer">Run as administrator</span>
+          </label>
+          <span className="text-xs text-gray-400 ml-7">
+            Needed for hotkeys in games that run as administrator, like League of Legends via
+            WeGame. Turning it on restarts ScreenLoop with a Windows admin prompt.
+          </span>
+        </div>
+
         <div className="flex items-center">
           <label className="flex items-center gap-2">
             <input

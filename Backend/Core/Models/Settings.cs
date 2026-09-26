@@ -46,6 +46,7 @@ namespace ScreenLoop.Backend.Core.Models
         private DisplayCaptureMethod _displayCaptureMethod = DisplayCaptureMethod.Auto;
         private bool _enableAi = false;
         private bool _autoGenerateHighlights = false;
+        private bool _runAsAdmin = false;
         private bool _runOnStartup = false;
         private bool _alwaysRecord = false;
         private bool _receiveBetaUpdates = false;
@@ -374,6 +375,14 @@ namespace ScreenLoop.Backend.Core.Models
             {
                 _gameIntegrations = value ?? new GameIntegrations();
             }
+        }
+
+        // Declared before RunOnStartup so it loads first: the startup setter reads it.
+        [JsonPropertyName("runAsAdmin")]
+        public bool RunAsAdmin
+        {
+            get => _runAsAdmin;
+            set => _runAsAdmin = value;
         }
 
         [JsonPropertyName("runOnStartup")]

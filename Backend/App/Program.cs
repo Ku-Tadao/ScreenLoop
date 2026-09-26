@@ -72,6 +72,16 @@ namespace ScreenLoop.Backend.App
             }
 #endif
 
+            // "Run as administrator" setting: hand off to an elevated copy before claiming anything.
+            // If UAC is declined, keep starting normally.
+            if (!ElevationService.IsElevated && ElevationService.IsRequestedInSettingsFile() && ElevationService.TryRelaunchElevated())
+            {
+                return;
+            }
+
+            // An elevated relaunch waits for the instance that started it to exit instead of handing off to it.
+            ElevationService.WaitForRelaunchParent(args);
+
             // Try to create a named mutex - this will fail if another instance exists
             singleInstanceMutex = new Mutex(true, "ScreenLoopApplicationMutex", out bool createdNew);
 
@@ -283,6 +293,12 @@ namespace ScreenLoop.Backend.App
             {
                 Shutdown();
             }
+        }
+
+        public static void Exit()
+        {
+            Shutdown();
+            Environment.Exit(0);
         }
 
         private static void Shutdown()
@@ -654,11 +670,7 @@ namespace ScreenLoop.Backend.App
 
                     var menu = new ContextMenuStrip();
                     menu.Items.Add("Open", null, async (s, e) => await ShowApplicationWindow());
-                    menu.Items.Add("Exit", null, (s, e) =>
-                    {
-                        Shutdown();
-                        Environment.Exit(0);
-                    });
+                    menu.Items.Add("Exit", null, (s, e) => Exit());
                     icon.ContextMenuStrip = menu;
 
                     icon.MouseDoubleClick += async (s, e) =>
