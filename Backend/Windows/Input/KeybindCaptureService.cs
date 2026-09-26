@@ -159,9 +159,10 @@ namespace ScreenLoop.Backend.Windows.Input
                     return CallNextHookEx(_hookID, nCode, wParam, lParam);
                 }
 
-                bool ctrlPressed = (GetKeyState(VK_CONTROL) & KEY_PRESSED_MASK) != 0;
-                bool altPressed = (GetKeyState(VK_ALT) & KEY_PRESSED_MASK) != 0;
-                bool shiftPressed = (GetKeyState(VK_SHIFT) & KEY_PRESSED_MASK) != 0;
+                // GetKeyState would read this thread's own (stale) input state; the hook thread never has focus.
+                bool ctrlPressed = (GetAsyncKeyState(VK_CONTROL) & KEY_PRESSED_MASK) != 0;
+                bool altPressed = (GetAsyncKeyState(VK_ALT) & KEY_PRESSED_MASK) != 0;
+                bool shiftPressed = (GetAsyncKeyState(VK_SHIFT) & KEY_PRESSED_MASK) != 0;
 
                 int pressedCount = 0;
                 if (ctrlPressed) _pressedKeys[pressedCount++] = VK_CONTROL;
@@ -184,11 +185,8 @@ namespace ScreenLoop.Backend.Windows.Input
 
         private static bool DoKeysMatch(List<int> keybindKeys, int pressedCount)
         {
-            bool keybindHasModifier = keybindKeys.Any(IsModifierKey);
-            if (!keybindHasModifier && keybindKeys.Count != pressedCount)
-                return false;
-
-            if (keybindHasModifier && keybindKeys.Count > pressedCount)
+            // Exact match only, so Ctrl+Alt+Z doesn't also fire an Alt+Z bind.
+            if (keybindKeys.Count != pressedCount)
                 return false;
 
             foreach (var key in keybindKeys)
@@ -206,11 +204,6 @@ namespace ScreenLoop.Backend.Windows.Input
             }
 
             return true;
-        }
-
-        private static bool IsModifierKey(int key)
-        {
-            return key == VK_CONTROL || key == VK_ALT || key == VK_SHIFT;
         }
 
         private static void RegisterHotkeys()
@@ -554,7 +547,7 @@ namespace ScreenLoop.Backend.Windows.Input
         private static extern IntPtr GetModuleHandle(string lpModuleName);
 
         [DllImport("user32.dll")]
-        private static extern short GetKeyState(int nVirtKey);
+        private static extern short GetAsyncKeyState(int vKey);
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
