@@ -323,6 +323,20 @@ namespace ScreenLoop.Backend.Recorder
             {
                 Log.Information("Shutting down OBS...");
 
+                // Stop and release everything while libobs is still alive: a WASAPI source still
+                // capturing during obs_shutdown pushes audio into freed state and crashes in obs.dll.
+                // Don't wait forever on a StopRecording already in progress.
+                bool gotLock = _stopRecordingSemaphore.Wait(TimeSpan.FromSeconds(15));
+                try
+                {
+                    _isStoppingOrStopped = true;
+                    ReleaseAllForShutdown();
+                }
+                finally
+                {
+                    if (gotLock) _stopRecordingSemaphore.Release();
+                }
+
                 // Dispose the OBS context to properly clean up OBS resources
                 _obsContext?.Dispose();
                 _obsContext = null;
@@ -334,6 +348,42 @@ namespace ScreenLoop.Backend.Recorder
             {
                 Log.Error(ex, "Error during OBS shutdown");
             }
+        }
+
+        private static void ReleaseAllForShutdown()
+        {
+            foreach (Output? output in new Output?[] { _bufferOutput, _output })
+            {
+                if (output == null || output.IsDisposed || !output.IsActive)
+                    continue;
+
+                Log.Information("Stopping {Output} before OBS shutdown", output.GetType().Name);
+                if (!output.Stop(waitForCompletion: true, timeoutMs: 10000))
+                {
+                    Log.Warning("Output did not stop within timeout. Forcing stop.");
+                    output.ForceStop();
+                }
+            }
+
+            // The signal handler belongs to the output, so disconnect before releasing it.
+            _replaySavedConnection?.Dispose();
+            _replaySavedConnection = null;
+            _bufferOutput?.Dispose();
+            _output?.Dispose();
+            DisposeOutput();
+
+            DisposeSources();
+
+            _videoEncoder?.Dispose();
+            foreach (var encoder in _audioEncoders)
+                encoder.Dispose();
+            DisposeEncoders();
+
+            // Released sources are destroyed on libobs' destruction thread. Let that finish
+            // (WASAPI capture threads joined) before obs_shutdown frees what they write into.
+            Obs.WaitForDestroyQueue();
+
+            Log.Information("Released outputs, sources and encoders before OBS shutdown");
         }
 
         /// <summary>
@@ -1077,6 +1127,9 @@ namespace ScreenLoop.Backend.Recorder
             {
                 try
                 {
+                    // The main canvas also references the scene; Dispose alone only drops our reference,
+                    // leaving the scene and every source in it (with their capture threads) alive.
+                    _mainScene.Remove();
                     _mainScene.Dispose();
                     Log.Information("Scene disposed");
                 }
