@@ -642,14 +642,18 @@ export default function VideoComponent({ video }: { video: Content }) {
       if (at.isMultiTrack) {
         const t = vid.currentTime;
         const segs = segmentsRef.current;
-        const activeSeg = segs.find((s) => t >= s.startTime && t <= s.endTime);
+        // Segments are shared across videos; only this video's own may override its audio.
+        const activeSeg = segs.find(
+          (s) => s.fileName === video.fileName && t >= s.startTime && t <= s.endTime,
+        );
         const activeId = activeSeg?.id ?? null;
 
         if (activeId !== activeSegmentIdRef.current || segmentsDirtyRef.current) {
           activeSegmentIdRef.current = activeId;
           segmentsDirtyRef.current = false;
           if (activeSeg) {
-            at.setMuteOverride(activeSeg.mutedAudioTracks ?? []);
+            // No saved mutes means "use the default mix", not "unmute Full Mix and every track".
+            at.setMuteOverride(activeSeg.mutedAudioTracks ?? null);
             at.setVolumeOverride(activeSeg.audioTrackVolumes ?? null);
           } else {
             at.setMuteOverride(null);
@@ -676,7 +680,7 @@ export default function VideoComponent({ video }: { video: Content }) {
       vid.removeEventListener('pause', onPause);
       cancelAnimationFrame(rafId);
     };
-  }, []);
+  }, [video.fileName]);
 
   // Update container width on window resize
   useEffect(() => {
@@ -1103,6 +1107,7 @@ export default function VideoComponent({ video }: { video: Content }) {
     const visibleDuration = duration / zoom;
     const segmentDuration = Math.min(120, Math.max(6, visibleDuration * 0.1));
     const end = Math.min(start + segmentDuration, duration);
+    const ownSegments = segments.filter((s) => s.fileName === video.fileName);
 
     const newSegment: Segment = {
       id: Date.now(),
@@ -1117,8 +1122,8 @@ export default function VideoComponent({ video }: { video: Content }) {
       title: video.title,
       igdbId: video.igdbId,
       mutedAudioTracks:
-        segments.length > 0
-          ? segments[segments.length - 1].mutedAudioTracks
+        ownSegments.length > 0
+          ? ownSegments[ownSegments.length - 1].mutedAudioTracks
           : audioTracks.isMultiTrack
             ? [...audioTracks.mutedTracks]
             : undefined,
