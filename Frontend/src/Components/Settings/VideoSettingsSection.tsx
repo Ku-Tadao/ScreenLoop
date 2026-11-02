@@ -222,14 +222,13 @@ export default function VideoSettingsSection({
               <input
                 aria-label="Replay buffer length in seconds"
                 className="h-10 flex-1 rounded-lg border border-screen-line bg-screen-main px-3 text-slate-200"
-                max={600}
                 min={5}
                 type="number"
                 value={settings.replayBufferDuration}
                 onChange={(e) => {
-                  const replayBufferDuration = Math.min(
-                    600,
-                    Math.max(5, Math.round(Number(e.target.value) || 30)),
+                  const replayBufferDuration = Math.max(
+                    5,
+                    Math.round(Number(e.target.value) || 30),
                   );
                   updateSettings({
                     replayBufferDuration,
