@@ -257,6 +257,10 @@ namespace ScreenLoop.Backend.Recorder
                         .WithModulePath(
                             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "obs-plugins", "64bit"),
                             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "obs-plugins", "%module%"))
+                        // OBS 33+ packages ship each plugin as core/<module>/<module>.dll with its data alongside
+                        .WithModulePath(
+                            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "core", "%module%"),
+                            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "core", "%module%", "data"))
                         .WithVideo(v => v
                             .Resolution(1920, 1080)
                             .Fps(60))
@@ -1410,10 +1414,13 @@ namespace ScreenLoop.Backend.Recorder
                         Directory.Delete(dataPath, true);
                     }
 
-                    string obsPluginsPath = Path.Combine(currentDirectory, "obs-plugins");
-                    if (Directory.Exists(obsPluginsPath))
+                    foreach (string pluginsDir in new[] { "obs-plugins", "core" })
                     {
-                        Directory.Delete(obsPluginsPath, true);
+                        string obsPluginsPath = Path.Combine(currentDirectory, pluginsDir);
+                        if (Directory.Exists(obsPluginsPath))
+                        {
+                            Directory.Delete(obsPluginsPath, true);
+                        }
                     }
                 }
 
