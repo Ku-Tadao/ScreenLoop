@@ -46,11 +46,11 @@ const ClippingCard: React.FC<ClippingCardProps> = ({ clipping }) => {
         <div className="flex items-center gap-3 w-full relative">
           {/* Progress */}
           {isError ? (
-            <div className="w-4 h-4 rounded-full bg-error"></div>
+            <div className="w-4 h-4 rounded-[4px] bg-error"></div>
           ) : clipping.progress < 100 ? (
             <CircularProgress progress={displayProgress} size={24} strokeWidth={2} duration={100} />
           ) : (
-            <div className="w-4 h-4 rounded-full bg-success"></div>
+            <div className="w-4 h-4 rounded-[4px] bg-success"></div>
           )}
 
           {/* Clipping Details */}

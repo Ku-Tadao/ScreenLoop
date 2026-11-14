@@ -82,8 +82,8 @@ export default function VideoSettingsSection({
               }`}
               onClick={() => applyPreset(preset.id)}
             >
-              <span className="absolute left-3 top-4 h-4 w-4 rounded-full bg-screen-deep ring-1 ring-screen-line">
-                {active && <span className="m-1 block h-2 w-2 rounded-full bg-primary" />}
+              <span className="absolute left-3 top-4 h-4 w-4 rounded-[5px] bg-screen-deep ring-1 ring-screen-line">
+                {active && <span className="m-1 block h-2 w-2 rounded-[2px] bg-primary" />}
               </span>
               <span className="ml-7 block text-sm font-medium">{preset.label}</span>
               <span className="ml-7 mt-1 block text-sm text-screen-muted">

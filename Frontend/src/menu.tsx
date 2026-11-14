@@ -1,4 +1,5 @@
 import { useSettings } from './Context/SettingsContext';
+import appIcon from './assets/icon.svg';
 import { useAppState } from './Context/AppStateContext';
 import RecordingCard from './Components/RecordingCard';
 import { sendMessageToBackend } from './Utils/MessageUtils';
@@ -75,17 +76,25 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
 
   return (
     <aside className="app-sidebar h-full flex flex-col border-r border-screen-line/60">
-      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-5 py-6">
-        <h1 className="text-xl font-semibold tracking-tight text-base-content">ScreenLoop</h1>
-        <span
-          className={`connection-status text-[10px] font-medium ${
-            isConnected ? 'text-primary' : 'text-warning'
-          }`}
-          role="status"
-          aria-live="polite"
-        >
-          {isConnected ? 'Online' : 'Reconnecting'}
-        </span>
+      <div className="flex shrink-0 items-center gap-3 px-5 py-6">
+        <img className="brand-mark" src={appIcon} alt="" />
+        <div className="min-w-0">
+          <h1 className="text-[15px] font-semibold leading-tight tracking-tight text-base-content">
+            ScreenLoop
+          </h1>
+          <span
+            className="connection-status"
+            style={
+              {
+                '--status-color': isConnected ? 'var(--color-primary)' : 'var(--color-warning)',
+              } as React.CSSProperties
+            }
+            role="status"
+            aria-live="polite"
+          >
+            {isConnected ? 'Online' : 'Reconnecting'}
+          </span>
+        </div>
       </div>
       {/* Menu Items */}
       <nav
@@ -131,16 +140,15 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
         <div className="space-y-2 p-2">
           <div className="sidebar-storage rounded-lg p-3">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-[0.05em] text-screen-muted">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-screen-muted">
                 Storage
               </span>
-              <span className="text-[11px] font-medium text-primary">{storagePercent}%</span>
+              <span className="text-[11px] font-medium tabular-nums text-base-content">
+                {storagePercent}%
+              </span>
             </div>
-            <div className="h-1.5 overflow-hidden rounded bg-screen-surface">
-              <div
-                className="h-full rounded bg-primary"
-                style={{ width: `${storageBarPercent}%` }}
-              />
+            <div className="storage-bar">
+              <div style={{ width: `${storageBarPercent}%` }} />
             </div>
             <p className="mt-2 text-xs text-screen-muted tabular-nums">
               {appState.currentFolderSizeGb.toFixed(1)} GB / {settings.storageLimit} GB
@@ -195,31 +203,22 @@ export default function Menu({ selectedMenu, onSelectMenu }: MenuProps) {
           {obsDownloadProgress !== null && obsDownloadProgress < 100 ? (
             <>
               <p className="text-center text-sm text-gray-300 mb-2">Downloading OBS</p>
-              <div className="w-full bg-base-200 rounded-full h-1.5">
-                <div
-                  className="h-1.5 rounded-full bg-primary transition-all duration-300"
-                  style={{ width: `${obsDownloadProgress}%` }}
-                ></div>
+              <div className="storage-bar w-full">
+                <div style={{ width: `${obsDownloadProgress}%` }}></div>
               </div>
               <p className="text-gray-500 text-xs mt-1">{obsDownloadProgress}%</p>
             </>
           ) : (
             <>
-              <div
-                style={{
-                  width: '3.5rem',
-                  height: '2rem',
-                }}
-                className="loading loading-infinity"
-              ></div>
-              <p className="text-center mt-2 disabled">Starting OBS</p>
+              <div className="loading loading-infinity w-9 text-primary"></div>
+              <p className="mt-1 text-center text-xs text-screen-muted">Starting OBS</p>
             </>
           )}
         </div>
       )}
 
       <button
-        className="capture-toggle m-4 h-11 shrink-0 rounded-lg bg-primary text-sm font-semibold text-primary-content transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+        className={`capture-toggle shrink-0 ${appState.recording || appState.preRecording ? 'is-recording' : ''}`}
         disabled={
           buttonCooldown ||
           !isConnected ||

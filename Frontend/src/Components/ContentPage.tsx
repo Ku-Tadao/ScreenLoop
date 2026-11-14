@@ -340,9 +340,9 @@ export default function ContentPage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {sectionId === 'clips' && onFavoriteFilterChange && (
-            <div className="join">
+            <div className="flex gap-1.5">
               <button
-                className={`btn btn-sm join-item border-base-400 ${
+                className={`btn btn-sm border-base-400 ${
                   favoriteFilter === 'all' ? 'btn-primary' : 'btn-secondary'
                 }`}
                 onClick={() => onFavoriteFilterChange('all')}
@@ -351,7 +351,7 @@ export default function ContentPage({
                 All
               </button>
               <button
-                className={`btn btn-sm join-item border-base-400 ${
+                className={`btn btn-sm border-base-400 ${
                   favoriteFilter === 'favorites' ? 'btn-primary' : 'btn-secondary'
                 }`}
                 onClick={() => onFavoriteFilterChange('favorites')}
@@ -436,7 +436,7 @@ export default function ContentPage({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-3 left-1/2 -translate-x-1/2 bg-base-300 border border-base-400 rounded-xl px-4 py-2 flex items-center gap-3 shadow-lg z-50"
+            className="selection-bar fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 flex items-center gap-3 z-50"
           >
             <span className="text-sm text-gray-300">{selectedItems.size} Selected</span>
             <Button

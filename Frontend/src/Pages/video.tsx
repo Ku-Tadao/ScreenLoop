@@ -516,6 +516,9 @@ export default function VideoComponent({ video }: { video: Content }) {
     document.addEventListener('visibilitychange', pauseWhenHidden);
     vid.addEventListener('play', pauseWhenHidden);
     pauseWhenHidden();
+    // Started here instead of with the autoPlay attribute: React builds the element during
+    // render, and a render it throws away would leave a detached copy playing with no controls.
+    if (!document.hidden) void vid.play().catch(() => {});
     return () => {
       document.removeEventListener('visibilitychange', pauseWhenHidden);
       vid.removeEventListener('play', pauseWhenHidden);
@@ -1638,7 +1641,6 @@ export default function VideoComponent({ video }: { video: Content }) {
         >
           <div className={videoWrapperClassName}>
             <video
-              autoPlay
               className="w-full h-full object-contain"
               src={getVideoPath()}
               ref={videoRef}
@@ -1660,7 +1662,7 @@ export default function VideoComponent({ video }: { video: Content }) {
           </div>
 
           <div
-            className={`absolute left-0 right-0 bottom-0 bg-black/70 pb-2 flex flex-col gap-2 transition-transform duration-300 select-none ${isFullscreen ? '' : 'rounded-b-lg'} ${controlsVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'}`}
+            className={`absolute left-0 right-0 bottom-0 bg-black/70 pb-2 flex flex-col gap-2 transition-[translate,opacity] duration-300 select-none ${isFullscreen ? '' : 'rounded-b-lg'} ${controlsVisible ? 'translate-y-0' : 'translate-y-full opacity-0 pointer-events-none'}`}
             // Slid off-screen rather than unmounted, so keep its controls out of the tab order.
             inert={!controlsVisible}
             onMouseEnter={handleControlsMouseEnter}

@@ -15,38 +15,42 @@ export default function GenericModal({ title, subtitle, description, type, onClo
     switch (type) {
       case 'info':
         return {
-          icon: <Info className="text-blue-500" size={32} />,
-          titleColor: 'text-white',
+          icon: <Info className="text-info" size={20} />,
+          tile: 'bg-info/10 ring-info/20',
         };
       case 'warning':
         return {
-          icon: <TriangleAlert className="text-warning" size={32} />,
-          titleColor: 'text-warning',
+          icon: <TriangleAlert className="text-warning" size={20} />,
+          tile: 'bg-warning/10 ring-warning/20',
         };
       case 'error':
         return {
-          icon: <CircleAlert className="text-error" size={32} />,
-          titleColor: 'text-error',
+          icon: <CircleAlert className="text-error" size={20} />,
+          tile: 'bg-error/10 ring-error/20',
         };
       default:
         return {
-          icon: <Info className="text-blue-500" size={32} />,
-          titleColor: 'text-white',
+          icon: <Info className="text-info" size={20} />,
+          tile: 'bg-info/10 ring-info/20',
         };
     }
   };
 
-  const { icon, titleColor } = getTypeStyles();
+  const { icon, tile } = getTypeStyles();
 
   return (
     <>
       {/* Header */}
-      <div className="modal-header pb-4 border-b border-gray-700">
+      <div className="modal-header pb-5 border-b">
         <div className="flex items-center">
-          <span className="text-3xl mr-3 flex items-center">{icon}</span>
-          <h2 className={`font-bold text-3xl mb-0 ${titleColor}`}>{title}</h2>
+          <span
+            className={`mr-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ${tile}`}
+          >
+            {icon}
+          </span>
+          <h2 className="mb-0 pr-8 text-base-content">{title}</h2>
         </div>
-        {subtitle && <p className="text-gray-400 text-lg mt-2">{subtitle}</p>}
+        {subtitle && <p className="mt-3 text-sm text-screen-muted">{subtitle}</p>}
         <Button
           variant="ghost"
           icon
@@ -59,7 +63,7 @@ export default function GenericModal({ title, subtitle, description, type, onClo
       </div>
 
       <div className={`modal-body py-2 mt-4`}>
-        <div className="text-gray-300 text-lg whitespace-pre-line">{description}</div>
+        <div className="text-screen-muted whitespace-pre-line">{description}</div>
       </div>
     </>
   );

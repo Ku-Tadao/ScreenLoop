@@ -102,7 +102,7 @@ const RecordingCard: React.FC<RecordingCardProps> = ({ recording, preRecording }
         <div className="flex items-center justify-between mb-1 relative z-10">
           <div className="flex items-center">
             <span
-              className={`w-3 h-3 shrink-0 mb-0.5 rounded-full mr-1.5 ${preRecording ? 'bg-orange-500' : 'bg-red-500'}`}
+              className={`w-3 h-3 shrink-0 mb-0.5 rounded-[3px] mr-1.5 ${preRecording ? 'bg-orange-500' : 'bg-red-500'}`}
             ></span>
             <span className="text-gray-200 text-sm font-medium">
               {preRecording ? preRecording.status : 'Recording'}

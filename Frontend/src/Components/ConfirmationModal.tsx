@@ -21,12 +21,12 @@ export default function ConfirmationModal({
   return (
     <>
       {/* Header */}
-      <div className="modal-header pb-4 border-b border-gray-700">
+      <div className="modal-header pb-5 border-b">
         <div className="flex items-center">
-          <span className="text-3xl mr-3 flex items-center">
-            <TriangleAlert className="text-warning" size={32} />
+          <span className="mr-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-warning/10 ring-1 ring-warning/20">
+            <TriangleAlert className="text-warning" size={20} />
           </span>
-          <h2 className="font-bold text-3xl mb-0 text-warning">{title}</h2>
+          <h2 className="mb-0 pr-8 text-base-content">{title}</h2>
         </div>
         <Button
           variant="ghost"
@@ -41,7 +41,7 @@ export default function ConfirmationModal({
       </div>
 
       <div className="modal-body py-2 mt-4">
-        <div className="text-gray-300 text-lg whitespace-pre-line">{description}</div>
+        <div className="text-screen-muted whitespace-pre-line">{description}</div>
       </div>
 
       {/* Footer with buttons */}
